@@ -1,35 +1,75 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { estudiantesMock, riesgosMock } from "@/lib/mock/data";
-import { useState } from "react";
+import { classroomService } from "@/lib/api/services";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Search, Filter, ArrowUpDown } from "lucide-react";
-import type { NivelRiesgo } from "@/types";
+import { Search } from "lucide-react";
+import type { StudentSummary, RiskLevel } from "@/types";
 
 export default function EstudiantesPage() {
+  const [estudiantes, setEstudiantes] = useState<StudentSummary[]>([]);
+  const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
-  const [filtroRiesgo, setFiltroRiesgo] = useState<NivelRiesgo | "todos">("todos");
+  const [filtroRiesgo, setFiltroRiesgo] = useState<RiskLevel | "todos">("todos");
 
-  const estudiantesConRiesgo = estudiantesMock.map((estudiante) => {
-    const riesgo = riesgosMock.find((r) => r.estudiante_id === estudiante.id);
-    return { estudiante, riesgo };
-  });
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const data = await classroomService.getAllStudents();
+        setEstudiantes(data);
+      } catch (error) {
+        console.error("Error loading students:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
-  const estudiantesFiltrados = estudiantesConRiesgo
+  const estudiantesFiltrados = estudiantes
     .filter((item) => {
       const matchBusqueda =
-        item.estudiante.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-        item.estudiante.apellido.toLowerCase().includes(busqueda.toLowerCase()) ||
-        item.estudiante.codigo.toLowerCase().includes(busqueda.toLowerCase());
+        item.name.toLowerCase().includes(busqueda.toLowerCase()) ||
+        item.student_id.toLowerCase().includes(busqueda.toLowerCase()) ||
+        item.email.toLowerCase().includes(busqueda.toLowerCase());
 
       const matchRiesgo =
-        filtroRiesgo === "todos" || item.riesgo?.nivel === filtroRiesgo;
+        filtroRiesgo === "todos" || item.risk_level === filtroRiesgo;
 
       return matchBusqueda && matchRiesgo;
     })
-    .sort((a, b) => (b.riesgo?.score || 0) - (a.riesgo?.score || 0));
+    .sort((a, b) => b.risk_score - a.risk_score);
+
+  const getRiskLevelLabel = (level: RiskLevel) => {
+    const labels: Record<RiskLevel, string> = {
+      excelente: "Excelente",
+      bueno: "Bueno",
+      regular: "Regular",
+      riesgo_moderado: "Riesgo Moderado",
+      riesgo_alto: "Riesgo Alto",
+      riesgo_critico: "Riesgo Crítico",
+    };
+    return labels[level] || level;
+  };
+
+  const isHighRisk = (level: RiskLevel) => 
+    level === "riesgo_alto" || level === "riesgo_critico";
+  
+  const isMediumRisk = (level: RiskLevel) => 
+    level === "regular" || level === "riesgo_moderado";
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Estudiantes</h1>
+          <p className="text-muted-foreground">Cargando lista de estudiantes...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -71,10 +111,21 @@ export default function EstudiantesPage() {
                 Todos
               </button>
               <button
-                onClick={() => setFiltroRiesgo("alto")}
+                onClick={() => setFiltroRiesgo("riesgo_critico")}
                 className={cn(
                   "px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                  filtroRiesgo === "alto"
+                  filtroRiesgo === "riesgo_critico"
+                    ? "bg-red-800 text-white"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                )}
+              >
+                Crítico
+              </button>
+              <button
+                onClick={() => setFiltroRiesgo("riesgo_alto")}
+                className={cn(
+                  "px-4 py-2 rounded-md text-sm font-medium transition-colors",
+                  filtroRiesgo === "riesgo_alto"
                     ? "bg-red-600 text-white"
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 )}
@@ -82,26 +133,37 @@ export default function EstudiantesPage() {
                 Alto
               </button>
               <button
-                onClick={() => setFiltroRiesgo("medio")}
+                onClick={() => setFiltroRiesgo("riesgo_moderado")}
                 className={cn(
                   "px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                  filtroRiesgo === "medio"
+                  filtroRiesgo === "riesgo_moderado"
                     ? "bg-yellow-600 text-white"
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 )}
               >
-                Medio
+                Moderado
               </button>
               <button
-                onClick={() => setFiltroRiesgo("bajo")}
+                onClick={() => setFiltroRiesgo("regular")}
                 className={cn(
                   "px-4 py-2 rounded-md text-sm font-medium transition-colors",
-                  filtroRiesgo === "bajo"
+                  filtroRiesgo === "regular"
+                    ? "bg-yellow-500 text-white"
+                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                )}
+              >
+                Regular
+              </button>
+              <button
+                onClick={() => setFiltroRiesgo("bueno")}
+                className={cn(
+                  "px-4 py-2 rounded-md text-sm font-medium transition-colors",
+                  filtroRiesgo === "bueno"
                     ? "bg-green-600 text-white"
                     : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 )}
               >
-                Bajo
+                Bueno
               </button>
             </div>
           </div>
@@ -110,103 +172,80 @@ export default function EstudiantesPage() {
 
       {/* Results count */}
       <div className="text-sm text-muted-foreground">
-        Mostrando {estudiantesFiltrados.length} de {estudiantesMock.length} estudiantes
+        Mostrando {estudiantesFiltrados.length} de {estudiantes.length} estudiantes
       </div>
 
       {/* Students Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {estudiantesFiltrados.map(({ estudiante, riesgo }) => (
+        {estudiantesFiltrados.map((estudiante) => (
           <Link
-            key={estudiante.id}
-            href={`/dashboard/estudiante/${estudiante.id}`}
+            key={estudiante.student_id}
+            href={`/dashboard/estudiante/${estudiante.student_id}`}
           >
             <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <CardTitle className="text-lg">
-                      {estudiante.nombre} {estudiante.apellido}
+                      {estudiante.name}
                     </CardTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {estudiante.codigo}
+                      {estudiante.student_id}
                     </p>
                   </div>
-                  {riesgo && (
-                    <div
-                      className={cn(
-                        "px-2 py-1 rounded text-xs font-medium",
-                        riesgo.nivel === "alto"
-                          ? "bg-red-100 text-red-800"
-                          : riesgo.nivel === "medio"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-green-100 text-green-800"
-                      )}
-                    >
-                      {riesgo.nivel.toUpperCase()}
-                    </div>
-                  )}
+                  <div
+                    className={cn(
+                      "px-2 py-1 rounded text-xs font-medium whitespace-nowrap",
+                      isHighRisk(estudiante.risk_level)
+                        ? "bg-red-100 text-red-800"
+                        : isMediumRisk(estudiante.risk_level)
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-green-100 text-green-800"
+                    )}
+                  >
+                    {getRiskLevelLabel(estudiante.risk_level)}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
                   {/* Risk Score */}
-                  {riesgo && (
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-muted-foreground">Riesgo</span>
-                        <span className="font-medium">{riesgo.score}%</span>
-                      </div>
-                      <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                        <div
-                          className={cn(
-                            "h-full transition-all",
-                            riesgo.nivel === "alto"
-                              ? "bg-red-500"
-                              : riesgo.nivel === "medio"
-                              ? "bg-yellow-500"
-                              : "bg-green-500"
-                          )}
-                          style={{ width: `${riesgo.score}%` }}
-                        />
-                      </div>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-muted-foreground">Riesgo</span>
+                      <span className="font-medium">{estudiante.risk_score}</span>
                     </div>
-                  )}
+                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className={cn(
+                          "h-full transition-all",
+                          isHighRisk(estudiante.risk_level)
+                            ? "bg-red-500"
+                            : isMediumRisk(estudiante.risk_level)
+                            ? "bg-yellow-500"
+                            : "bg-green-500"
+                        )}
+                        style={{ width: `${estudiante.risk_score}%` }}
+                      />
+                    </div>
+                  </div>
 
                   {/* Details */}
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
-                      <p className="text-muted-foreground">Ciclo</p>
-                      <p className="font-medium">{estudiante.ciclo}</p>
+                      <p className="text-muted-foreground">Promedio</p>
+                      <p className="font-medium">{estudiante.promedio_acumulado.toFixed(2)}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Carrera</p>
-                      <p className="font-medium text-xs">
-                        {estudiante.carrera.split(" ")[0]}
+                      <p className="text-muted-foreground">Alertas</p>
+                      <p className={cn(
+                        "font-medium",
+                        estudiante.alerts_count > 0 ? "text-red-600" : "text-green-600"
+                      )}>
+                        {estudiante.alerts_count}
                       </p>
                     </div>
                   </div>
-
-                  {/* Risk Factors */}
-                  {riesgo && riesgo.factores.length > 0 && (
-                    <div>
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Factores de riesgo:
-                      </p>
-                      <ul className="space-y-1">
-                        {riesgo.factores.slice(0, 2).map((factor, idx) => (
-                          <li key={idx} className="text-xs flex items-start gap-1">
-                            <span className="text-muted-foreground">•</span>
-                            <span className="flex-1">{factor}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      {riesgo.factores.length > 2 && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          +{riesgo.factores.length - 2} más
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
               </CardContent>
             </Card>

@@ -1,4 +1,5 @@
-// Mock API client para el backend FastAPI
+// Cliente API para el backend FastAPI
+// Conecta con el backend en http://localhost:8000
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -15,11 +16,27 @@ class ApiClient {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
-    // Mock mode - devolver datos simulados
-    console.log("Mock API Request:", url, options);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+        },
+      });
 
-    // Aquí podríamos simular respuestas según el endpoint
-    return {} as T;
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `API Error ${response.status}: ${response.statusText} - ${errorText}`
+        );
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error("API Request failed:", url, error);
+      throw error;
+    }
   }
 
   async get<T>(endpoint: string): Promise<T> {
@@ -48,27 +65,3 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient(API_URL);
-
-// Cuando tengamos el backend activo, reemplazar con llamadas reales:
-/*
-private async request<T>(
-  endpoint: string,
-  options?: RequestInit
-): Promise<T> {
-  const url = `${this.baseUrl}${endpoint}`;
-
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`API Error: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-*/

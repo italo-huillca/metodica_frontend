@@ -1,8 +1,8 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { alertasMock, getEstudianteById } from "@/lib/mock/data";
-import { useState } from "react";
+import { classroomService, riskService } from "@/lib/api/services";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
   AlertCircle,
@@ -15,11 +15,12 @@ import {
   Heart,
   UserCircle,
   XCircle,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
-import type { TipoAlerta } from "@/types";
 
 function getTimeAgo(dateString: string): string {
+  if (!dateString) return "Recientemente";
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -31,36 +32,96 @@ function getTimeAgo(dateString: string): string {
   return `Hace ${diffDays} día${diffDays > 1 ? "s" : ""}`;
 }
 
-function getAlertIcon(tipo: TipoAlerta) {
+function getAlertIcon(tipo: string) {
   switch (tipo) {
     case "academico":
+    case "academic":
       return <BookOpen className="h-5 w-5" />;
     case "asistencia":
+    case "attendance":
       return <Calendar className="h-5 w-5" />;
     case "emocional":
+    case "emotional":
       return <Heart className="h-5 w-5" />;
     case "comportamiento":
+    case "engagement":
       return <UserCircle className="h-5 w-5" />;
-    case "critico":
+    case "institucional":
       return <AlertTriangle className="h-5 w-5" />;
     default:
       return <Info className="h-5 w-5" />;
   }
 }
 
+interface AlertWithStudent {
+  id: string;
+  student_id: string;
+  student_name: string;
+  type: string;
+  severity: string;
+  message: string;
+  timestamp?: string;
+  acknowledged: boolean;
+}
+
 export default function AlertasPage() {
-  const [filtroTipo, setFiltroTipo] = useState<TipoAlerta | "todos">("todos");
+  const [alerts, setAlerts] = useState<AlertWithStudent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filtroTipo, setFiltroTipo] = useState<string>("todos");
   const [mostrarLeidas, setMostrarLeidas] = useState(false);
 
-  const alertasFiltradas = alertasMock
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Obtener todos los estudiantes
+        const students = await classroomService.getAllStudents();
+        
+        // Obtener alertas de cada estudiante en riesgo
+        const alertsPromises = students
+          .filter(s => s.alerts_count > 0)
+          .map(async (student) => {
+            const studentData = await classroomService.getStudent(student.student_id);
+            return studentData.risk_profile.alerts.map(alert => ({
+              ...alert,
+              student_id: student.student_id,
+              student_name: student.name,
+            }));
+          });
+
+        const allAlerts = (await Promise.all(alertsPromises)).flat();
+        setAlerts(allAlerts);
+      } catch (error) {
+        console.error("Error loading alerts:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const alertasFiltradas = alerts
     .filter((alerta) => {
-      const matchTipo = filtroTipo === "todos" || alerta.tipo === filtroTipo;
-      const matchLeida = mostrarLeidas || !alerta.leida;
+      const matchTipo = filtroTipo === "todos" || alerta.type === filtroTipo;
+      const matchLeida = mostrarLeidas || !alerta.acknowledged;
       return matchTipo && matchLeida;
     })
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    .sort((a, b) => {
+      const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return dateB - dateA;
+    });
 
-  const alertasNoLeidas = alertasMock.filter((a) => !a.leida).length;
+  const alertasNoLeidas = alerts.filter((a) => !a.acknowledged).length;
+  const alertasCriticas = alerts.filter((a) => a.severity === "high" || a.severity === "critical").length;
+  const alertasAdvertencias = alerts.filter((a) => a.severity === "medium").length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -93,7 +154,7 @@ export default function AlertasPage() {
             <Info className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{alertasMock.length}</div>
+            <div className="text-2xl font-bold">{alerts.length}</div>
             <p className="text-xs text-muted-foreground">
               Todas las alertas
             </p>
@@ -107,10 +168,10 @@ export default function AlertasPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              {alertasMock.filter((a) => a.nivel === "error").length}
+              {alertasCriticas}
             </div>
             <p className="text-xs text-muted-foreground">
-              Nivel error
+              Nivel alto/crítico
             </p>
           </CardContent>
         </Card>
@@ -122,10 +183,10 @@ export default function AlertasPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">
-              {alertasMock.filter((a) => a.nivel === "warning").length}
+              {alertasAdvertencias}
             </div>
             <p className="text-xs text-muted-foreground">
-              Nivel warning
+              Nivel medio
             </p>
           </CardContent>
         </Card>
@@ -204,24 +265,25 @@ export default function AlertasPage() {
 
       {/* Results count */}
       <div className="text-sm text-muted-foreground">
-        Mostrando {alertasFiltradas.length} de {alertasMock.length} alertas
+        Mostrando {alertasFiltradas.length} de {alerts.length} alertas
       </div>
 
       {/* Alerts List */}
       <div className="space-y-3">
         {alertasFiltradas.length > 0 ? (
           alertasFiltradas.map((alerta) => {
-            const estudiante = getEstudianteById(alerta.estudiante_id);
+            const isError = alerta.severity === "high" || alerta.severity === "critical";
+            const isWarning = alerta.severity === "medium";
 
             return (
               <Card
                 key={alerta.id}
                 className={cn(
                   "transition-all hover:shadow-md",
-                  !alerta.leida && "border-l-4",
-                  alerta.nivel === "error" && !alerta.leida && "border-l-red-500",
-                  alerta.nivel === "warning" && !alerta.leida && "border-l-yellow-500",
-                  alerta.nivel === "info" && !alerta.leida && "border-l-blue-500"
+                  !alerta.acknowledged && "border-l-4",
+                  isError && !alerta.acknowledged && "border-l-red-500",
+                  isWarning && !alerta.acknowledged && "border-l-yellow-500",
+                  !isError && !isWarning && !alerta.acknowledged && "border-l-blue-500"
                 )}
               >
                 <CardContent className="p-4">
@@ -230,24 +292,26 @@ export default function AlertasPage() {
                     <div
                       className={cn(
                         "p-2 rounded-lg",
-                        alerta.nivel === "error" && "bg-red-100 text-red-600",
-                        alerta.nivel === "warning" && "bg-yellow-100 text-yellow-600",
-                        alerta.nivel === "info" && "bg-blue-100 text-blue-600"
+                        isError && "bg-red-100 text-red-600",
+                        isWarning && "bg-yellow-100 text-yellow-600",
+                        !isError && !isWarning && "bg-blue-100 text-blue-600"
                       )}
                     >
-                      {getAlertIcon(alerta.tipo)}
+                      {getAlertIcon(alerta.type)}
                     </div>
 
                     {/* Content */}
                     <div className="flex-1 space-y-1">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
-                          <h4 className="font-semibold">{alerta.titulo}</h4>
+                          <h4 className="font-semibold capitalize">
+                            {alerta.type.replace(/_/g, " ")}
+                          </h4>
                           <p className="text-sm text-muted-foreground mt-1">
-                            {alerta.mensaje}
+                            {alerta.message}
                           </p>
                         </div>
-                        {!alerta.leida && (
+                        {!alerta.acknowledged && (
                           <div className="flex-shrink-0">
                             <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800">
                               Nuevo
@@ -259,28 +323,27 @@ export default function AlertasPage() {
                       <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2">
                         <span className="flex items-center gap-1">
                           <UserCircle className="h-3 w-3" />
-                          {estudiante ? `${estudiante.nombre} ${estudiante.apellido}` : "Estudiante"}
+                          {alerta.student_name}
                         </span>
                         <span className="capitalize">
-                          {alerta.tipo}
+                          {alerta.severity === "high" || alerta.severity === "critical" ? "Alta" : 
+                           alerta.severity === "medium" ? "Media" : "Baja"}
                         </span>
                         <span>
-                          {getTimeAgo(alerta.created_at)}
+                          {getTimeAgo(alerta.timestamp || new Date().toISOString())}
                         </span>
-                        {estudiante && (
-                          <Link
-                            href={`/dashboard/estudiante/${estudiante.id}`}
-                            className="text-primary hover:underline ml-auto"
-                          >
-                            Ver perfil →
-                          </Link>
-                        )}
+                        <Link
+                          href={`/dashboard/estudiante/${alerta.student_id}`}
+                          className="text-primary hover:underline ml-auto"
+                        >
+                          Ver perfil →
+                        </Link>
                       </div>
                     </div>
 
                     {/* Status */}
                     <div className="flex-shrink-0">
-                      {alerta.leida ? (
+                      {alerta.acknowledged ? (
                         <CheckCircle className="h-5 w-5 text-green-600" />
                       ) : (
                         <XCircle className="h-5 w-5 text-muted-foreground" />

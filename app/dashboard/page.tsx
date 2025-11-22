@@ -1,8 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, TrendingUp, Users, AlertTriangle } from "lucide-react";
-import { estadisticasSalonMock, rankingMock, alertasMock } from "@/lib/mock/data";
+import { AlertCircle, TrendingUp, Users, AlertTriangle, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { riskService, classroomService } from "@/lib/api/services";
 
 function getTimeAgo(dateString: string): string {
   const date = new Date(dateString);
@@ -16,10 +16,33 @@ function getTimeAgo(dateString: string): string {
   return `Hace ${diffDays} día${diffDays > 1 ? "s" : ""}`;
 }
 
-export default function DashboardPage() {
-  const stats = estadisticasSalonMock;
-  const ranking = rankingMock.sort((a, b) => b.riesgo.score - a.riesgo.score).slice(0, 5);
-  const alertasRecientes = alertasMock.filter(a => !a.leida).slice(0, 3);
+export default async function DashboardPage() {
+  // Obtener datos del backend
+  const [stats, students] = await Promise.all([
+    riskService.getClassroomSummary(),
+    classroomService.getAllStudents(),
+  ]);
+
+  // Ranking de riesgo (top 5 en riesgo)
+  const ranking = [...students]
+    .sort((a, b) => b.risk_score - a.risk_score)
+    .slice(0, 5);
+
+  // Alertas de estudiantes críticos
+  const alertasRecientes = [
+    ...stats.students_critical.map((s) => ({
+      titulo: `Riesgo crítico: ${s.nombre}`,
+      mensaje: s.top_factors[0]?.description || "Requiere intervención inmediata",
+      nivel: "error" as const,
+      created_at: new Date().toISOString(),
+    })),
+    ...stats.students_at_high_risk.slice(0, 3).map((s) => ({
+      titulo: `Riesgo alto: ${s.nombre}`,
+      mensaje: s.top_factors[0]?.description || "Monitoreo requerido",
+      nivel: "warning" as const,
+      created_at: new Date().toISOString(),
+    })),
+  ].slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -41,7 +64,7 @@ export default function DashboardPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total_estudiantes}</div>
+            <div className="text-2xl font-bold">{stats.total_students}</div>
             <p className="text-xs text-muted-foreground">
               Ciclo actual
             </p>
@@ -51,14 +74,16 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Riesgo Bajo
+              Sin Riesgo
             </CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
+            <CheckCircle className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.riesgo_bajo}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {stats.risk_distribution.excelente + stats.risk_distribution.bueno}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {Math.round((stats.riesgo_bajo / stats.total_estudiantes) * 100)}% del salón
+              {Math.round(((stats.risk_distribution.excelente + stats.risk_distribution.bueno) / stats.total_students) * 100)}% del salón
             </p>
           </CardContent>
         </Card>
@@ -66,14 +91,16 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Riesgo Medio
+              Riesgo Moderado
             </CardTitle>
             <AlertCircle className="h-4 w-4 text-yellow-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.riesgo_medio}</div>
+            <div className="text-2xl font-bold text-yellow-600">
+              {stats.risk_distribution.regular + stats.risk_distribution.riesgo_moderado}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {Math.round((stats.riesgo_medio / stats.total_estudiantes) * 100)}% del salón
+              {Math.round(((stats.risk_distribution.regular + stats.risk_distribution.riesgo_moderado) / stats.total_students) * 100)}% del salón
             </p>
           </CardContent>
         </Card>
@@ -81,14 +108,16 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Riesgo Alto
+              Riesgo Alto/Crítico
             </CardTitle>
             <AlertTriangle className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.riesgo_alto}</div>
+            <div className="text-2xl font-bold text-red-600">
+              {stats.risk_distribution.riesgo_alto + stats.risk_distribution.riesgo_critico}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {Math.round((stats.riesgo_alto / stats.total_estudiantes) * 100)}% del salón - requiere atención
+              {stats.intervention_required} requieren intervención
             </p>
           </CardContent>
         </Card>
@@ -106,38 +135,38 @@ export default function DashboardPage() {
           <CardContent>
             <div className="space-y-4">
               {ranking.map((item) => {
-                const colorClass =
-                  item.riesgo.nivel === "alto" ? "bg-red-500" :
-                  item.riesgo.nivel === "medio" ? "bg-yellow-500" :
-                  "bg-green-500";
+                const isHigh = item.risk_level.includes("critico") || item.risk_level.includes("riesgo_alto");
+                const isMedium = item.risk_level.includes("moderado") || item.risk_level === "regular";
+                
+                const colorClass = isHigh ? "bg-red-500" : isMedium ? "bg-yellow-500" : "bg-green-500";
+                const badgeClass = isHigh 
+                  ? "bg-red-100 text-red-800" 
+                  : isMedium 
+                  ? "bg-yellow-100 text-yellow-800" 
+                  : "bg-green-100 text-green-800";
 
                 return (
                   <Link
-                    key={item.estudiante.id}
-                    href={`/dashboard/estudiante/${item.estudiante.id}`}
+                    key={item.student_id}
+                    href={`/dashboard/estudiante/${item.student_id}`}
                     className="flex items-center gap-4 hover:bg-accent/50 p-2 rounded-lg transition-colors"
                   >
                     <div className="w-40 text-sm font-medium truncate">
-                      {item.estudiante.nombre} {item.estudiante.apellido}
+                      {item.name}
                     </div>
                     <div className="flex-1">
                       <div className="h-2 bg-secondary rounded-full overflow-hidden">
                         <div
                           className={cn("h-full transition-all", colorClass)}
-                          style={{ width: `${item.riesgo.score}%` }}
+                          style={{ width: `${item.risk_score}%` }}
                         />
                       </div>
                     </div>
                     <div className="w-12 text-right text-sm font-medium">
-                      {item.riesgo.score}%
+                      {item.risk_score}
                     </div>
-                    <div className={cn(
-                      "px-2 py-1 rounded text-xs font-medium",
-                      item.riesgo.nivel === "alto" ? "bg-red-100 text-red-800" :
-                      item.riesgo.nivel === "medio" ? "bg-yellow-100 text-yellow-800" :
-                      "bg-green-100 text-green-800"
-                    )}>
-                      {item.riesgo.nivel.toUpperCase()}
+                    <div className={cn("px-2 py-1 rounded text-xs font-medium whitespace-nowrap", badgeClass)}>
+                      {item.risk_level.replace(/_/g, " ").toUpperCase()}
                     </div>
                   </Link>
                 );

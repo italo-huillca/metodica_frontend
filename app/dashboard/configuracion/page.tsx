@@ -1,9 +1,11 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { ThemeSelector } from "@/components/ui/theme-selector";
-import { Palette, Bell, Shield, Settings, Database, TrendingUp } from "lucide-react";
-import { useState } from "react";
+import { Palette, Bell, Shield, Settings, Database, TrendingUp, Loader2, CheckCircle2, XCircle, Link as LinkIcon } from "lucide-react";
+import { useState, useEffect } from "react";
+import { canvasService } from "@/lib/api/services";
 
 export default function ConfiguracionPage() {
   const [notificaciones, setNotificaciones] = useState({
@@ -19,6 +21,101 @@ export default function ConfiguracionPage() {
     asistenciaMinima: 80,
     notaMinima: 13,
   });
+
+  // Estados para Canvas
+  const [canvasToken, setCanvasToken] = useState("");
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [authStatus, setAuthStatus] = useState<{
+    authenticated: boolean;
+    user_id?: string;
+    name?: string;
+    email?: string;
+    last_sync?: string;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Verificar si ya hay una sesión activa
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
+  const checkAuthStatus = async () => {
+    const userId = localStorage.getItem("canvas_user_id");
+    if (!userId) {
+      setAuthStatus({ authenticated: false });
+      return;
+    }
+
+    try {
+      const status = await canvasService.getStatus(userId);
+      setAuthStatus(status);
+    } catch (error) {
+      console.error("Error verificando estado de Canvas:", error);
+      setAuthStatus({ authenticated: false });
+    }
+  };
+
+  const handleAuthenticate = async () => {
+    if (!canvasToken.trim()) {
+      setError("Por favor ingresa tu token de Canvas");
+      return;
+    }
+
+    setIsAuthenticating(true);
+    setError(null);
+
+    try {
+      const response = await canvasService.authenticate(canvasToken);
+      
+      // Guardar user_id en localStorage
+      localStorage.setItem("canvas_user_id", response.user_id);
+      localStorage.setItem("canvas_user_name", response.name);
+      localStorage.setItem("canvas_user_email", response.email);
+
+      setAuthStatus({
+        authenticated: true,
+        user_id: response.user_id,
+        name: response.name,
+        email: response.email,
+      });
+
+      setCanvasToken(""); // Limpiar el input
+    } catch (error: any) {
+      console.error("Error autenticando con Canvas:", error);
+      setError(error.message || "Error al autenticar con Canvas. Verifica tu token.");
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    const userId = localStorage.getItem("canvas_user_id");
+    if (userId) {
+      try {
+        await canvasService.logout(userId);
+      } catch (error) {
+        console.error("Error al cerrar sesión:", error);
+      }
+    }
+    localStorage.removeItem("canvas_user_id");
+    localStorage.removeItem("canvas_user_name");
+    localStorage.removeItem("canvas_user_email");
+    setAuthStatus({ authenticated: false });
+  };
+
+  const handleSync = async () => {
+    const userId = localStorage.getItem("canvas_user_id");
+    if (!userId) return;
+
+    try {
+      await canvasService.sync(userId);
+      await checkAuthStatus();
+      alert("Datos sincronizados correctamente");
+    } catch (error) {
+      console.error("Error sincronizando datos:", error);
+      alert("Error al sincronizar datos de Canvas");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -213,6 +310,113 @@ export default function ConfiguracionPage() {
         </CardContent>
       </Card>
 
+      {/* Integración con Canvas */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <LinkIcon className="h-5 w-5 text-primary" />
+            <CardTitle>Integración con Canvas</CardTitle>
+          </div>
+          <CardDescription>
+            Conecta tu cuenta de Canvas LMS para obtener datos académicos en tiempo real
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {authStatus?.authenticated ? (
+            // Usuario autenticado
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <div className="flex-1">
+                  <p className="font-medium text-green-900 dark:text-green-100">Conectado a Canvas</p>
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    {authStatus.name} ({authStatus.email})
+                  </p>
+                  {authStatus.last_sync && (
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                      Última sincronización: {new Date(authStatus.last_sync).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button onClick={handleSync} variant="outline">
+                  Sincronizar Datos
+                </Button>
+                <Button onClick={handleLogout} variant="destructive">
+                  Desconectar
+                </Button>
+              </div>
+
+              <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-sm text-blue-900 dark:text-blue-100">
+                  <strong>Nota:</strong> Tus datos reales de Canvas están siendo utilizados 
+                  para el cálculo de riesgo. El sistema analizará tus tareas pendientes, 
+                  participación en cursos y otros indicadores académicos.
+                </p>
+              </div>
+            </div>
+          ) : (
+            // Usuario no autenticado
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="canvas-token" className="text-sm font-medium">
+                  Token de Canvas
+                </label>
+                <input
+                  id="canvas-token"
+                  type="password"
+                  value={canvasToken}
+                  onChange={(e) => setCanvasToken(e.target.value)}
+                  placeholder="Ingresa tu token de Canvas"
+                  className="w-full px-3 py-2 border border-input rounded-md bg-background"
+                  disabled={isAuthenticating}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAuthenticate()}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Para obtener tu token: Canvas → Account → Settings → New Access Token
+                </p>
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  <p className="text-sm text-red-900 dark:text-red-100">{error}</p>
+                </div>
+              )}
+
+              <Button 
+                onClick={handleAuthenticate} 
+                disabled={isAuthenticating}
+                className="w-full"
+              >
+                {isAuthenticating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Conectando...
+                  </>
+                ) : (
+                  "Conectar con Canvas"
+                )}
+              </Button>
+
+              <div className="p-4 bg-muted rounded-lg">
+                <h4 className="text-sm font-semibold mb-2">¿Cómo obtener mi token?</h4>
+                <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+                  <li>Inicia sesión en Canvas (tecsup.instructure.com)</li>
+                  <li>Ve a Account → Settings</li>
+                  <li>Busca la sección &quot;Approved Integrations&quot;</li>
+                  <li>Haz clic en &quot;+ New Access Token&quot;</li>
+                  <li>Dale un nombre (ej: &quot;Metodica&quot;) y genera el token</li>
+                  <li>Copia el token y pégalo aquí</li>
+                </ol>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Próximas Configuraciones */}
       <Card>
         <CardHeader>
@@ -227,17 +431,17 @@ export default function ConfiguracionPage() {
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="p-3 bg-muted rounded-lg">
-              <Database className="h-4 w-4 text-muted-foreground mb-2" />
-              <p className="font-medium text-sm mb-1">Integración con Canvas</p>
-              <p className="text-xs text-muted-foreground">
-                Sincronización automática de datos académicos
-              </p>
-            </div>
-            <div className="p-3 bg-muted rounded-lg">
               <Shield className="h-4 w-4 text-muted-foreground mb-2" />
               <p className="font-medium text-sm mb-1">Gestión de Cuenta</p>
               <p className="text-xs text-muted-foreground">
                 Actualización de perfil y seguridad
+              </p>
+            </div>
+            <div className="p-3 bg-muted rounded-lg">
+              <Database className="h-4 w-4 text-muted-foreground mb-2" />
+              <p className="font-medium text-sm mb-1">Exportar Datos</p>
+              <p className="text-xs text-muted-foreground">
+                Descarga reportes en PDF y Excel
               </p>
             </div>
           </div>

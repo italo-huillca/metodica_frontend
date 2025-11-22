@@ -1,14 +1,37 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { heatmapAcademicoData } from "@/lib/mock/data";
 import { useMemo, memo } from "react";
+import type { StudentSummary } from "@/types";
 
-export const HeatmapAcademico = memo(function HeatmapAcademico() {
-  // Agrupar datos por estudiante y semana
+interface HeatmapAcademicoProps {
+  students: StudentSummary[];
+}
+
+export const HeatmapAcademico = memo(function HeatmapAcademico({ students }: HeatmapAcademicoProps) {
+  // Generar datos de heatmap basados en estudiantes reales
   const data = useMemo(() => {
-    return heatmapAcademicoData;
-  }, []);
+    if (students.length === 0) return [];
+    
+    // Generar 4 semanas de datos simulados basados en el promedio de cada estudiante
+    const semanas = ["Semana 1", "Semana 2", "Semana 3", "Semana 4"];
+    const cursos = ["Matemáticas", "Programación", "Base de Datos"];
+    
+    return students.flatMap(student => 
+      semanas.flatMap(semana => 
+        cursos.map(curso => {
+          // Simular variación basada en el promedio real del estudiante
+          const valor = student.promedio_acumulado + (Math.random() - 0.5) * 4;
+          return {
+            estudiante: student.name.split(",")[0], // Primer apellido
+            semana,
+            curso,
+            valor: Math.round(Math.max(0, Math.min(20, valor)) * 100) / 100 // Redondear a 2 decimales
+          };
+        })
+      )
+    );
+  }, [students]);
 
   // Obtener semanas únicas
   const semanas = useMemo(() => {

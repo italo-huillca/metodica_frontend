@@ -1,17 +1,41 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { heatmapEmocionalData } from "@/lib/mock/data";
 import { useMemo, memo } from "react";
+import type { StudentSummary } from "@/types";
 
-export const HeatmapEmocional = memo(function HeatmapEmocional() {
+interface HeatmapEmocionalProps {
+  students: StudentSummary[];
+}
+
+export const HeatmapEmocional = memo(function HeatmapEmocional({ students }: HeatmapEmocionalProps) {
+  // Generar datos emocionales basados en estudiantes reales
+  const heatmapEmocionalData = useMemo(() => {
+    if (students.length === 0) return [];
+    
+    const dias = ["Lun", "Mar", "Mié", "Jue", "Vie"];
+    
+    return students.flatMap(student => 
+      dias.map(dia => ({
+        estudiante: student.name.split(",")[0],
+        fecha: dia,
+        // Simular estado emocional basado en el nivel de riesgo
+        // Menor riesgo = mejor estado emocional
+        valor: student.risk_score < 30 ? Math.floor(Math.random() * 2) + 4 : // 4-5 (bueno)
+               student.risk_score < 50 ? 3 : // 3 (neutral)
+               student.risk_score < 70 ? 2 : // 2 (negativo)
+               Math.floor(Math.random() * 2) + 1 // 1-2 (muy negativo)
+      }))
+    );
+  }, [students]);
+  
   // Obtener días únicos
   const dias = useMemo(() => {
     return Array.from(new Set(heatmapEmocionalData.map((d) => d.fecha))).sort((a, b) => {
       const orden = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
       return orden.indexOf(a) - orden.indexOf(b);
     });
-  }, []);
+  }, [heatmapEmocionalData]);
 
   // Obtener estudiantes únicos
   const estudiantes = useMemo(() => {
