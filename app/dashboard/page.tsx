@@ -30,13 +30,15 @@ export default async function DashboardPage() {
 
   // Alertas de estudiantes críticos
   const alertasRecientes = [
-    ...stats.students_critical.map((s) => ({
+    ...stats.students_critical.map((s, index) => ({
+      id: `critical-${s.id || index}`,
       titulo: `Riesgo crítico: ${s.nombre}`,
       mensaje: s.top_factors[0]?.description || "Requiere intervención inmediata",
       nivel: "error" as const,
       created_at: new Date().toISOString(),
     })),
-    ...stats.students_at_high_risk.slice(0, 3).map((s) => ({
+    ...stats.students_at_high_risk.slice(0, 3).map((s, index) => ({
+      id: `high-${s.id || index}`,
       titulo: `Riesgo alto: ${s.nombre}`,
       mensaje: s.top_factors[0]?.description || "Monitoreo requerido",
       nivel: "warning" as const,

@@ -55,11 +55,11 @@ export default function AnalisisPage() {
                               stats.risk_distribution.riesgo_critico;
   const estudiantesRiesgoAlto = stats.students_at_high_risk.length + stats.students_critical.length;
   const totalEstudiantes = stats.total_students;
-  const porcentajeRiesgo = ((estudiantesEnRiesgo / totalEstudiantes) * 100).toFixed(0);
+  const porcentajeRiesgo = Math.round((estudiantesEnRiesgo / totalEstudiantes) * 100);
 
   // Calcular estado emocional general (basado en riesgo emocional)
   const estudiantesPositivos = stats.risk_distribution.excelente + stats.risk_distribution.bueno;
-  const porcentajePositivo = ((estudiantesPositivos / totalEstudiantes) * 100).toFixed(0);
+  const porcentajePositivo = Math.round((estudiantesPositivos / totalEstudiantes) * 100);
 
   // Identificar estudiantes para reconocimiento (bajo riesgo)
   const estudiantesExcelentes = students

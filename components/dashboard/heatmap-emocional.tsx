@@ -40,7 +40,7 @@ export const HeatmapEmocional = memo(function HeatmapEmocional({ students }: Hea
   // Obtener estudiantes únicos
   const estudiantes = useMemo(() => {
     return Array.from(new Set(heatmapEmocionalData.map((d) => d.estudiante)));
-  }, []);
+  }, [heatmapEmocionalData]);
 
   // Función para obtener color según el valor emocional
   const getColor = (valor: number): string => {
