@@ -1,7 +1,7 @@
 # METODICA_FRONTEND
 
 ## 1. Contexto general del sistema
-Metódica es una plataforma que busca reducir la deserción temprana en estudiantes de primeros ciclos en institutos y universidades. Su enfoque está alineado con los criterios reales utilizados por TECSUP para evaluar el avance del estudiante, como:
+Metodika es una plataforma que busca reducir la deserción temprana en estudiantes de primeros ciclos en institutos y universidades. Su enfoque está alineado con los criterios reales utilizados por TECSUP para evaluar el avance del estudiante, como:
 
 - Cantidad de inasistencias.
 - Desaprobaciones consecutivas.
