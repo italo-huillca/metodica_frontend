@@ -60,21 +60,32 @@ npm run start
 ## Variables de Entorno
 
 ### Desarrollo Local
-Crear un archivo `.env.local` con:
+Crear un archivo `.env.local` copiando `.env.example`:
+
+```bash
+cp .env.example .env.local
+```
+
+Editar `.env.local` según tu entorno:
 
 ```env
+# Backend API
+# Producción (Railway):
+NEXT_PUBLIC_API_URL=https://metodicabackend-production.up.railway.app
+# Desarrollo local (descomenta la siguiente línea):
+# NEXT_PUBLIC_API_URL=http://localhost:8000
+
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 ### Producción (Vercel)
 Configurar las siguientes variables en el dashboard de Vercel:
 
+- `NEXT_PUBLIC_API_URL`: `https://metodicabackend-production.up.railway.app`
 - `NEXT_PUBLIC_SUPABASE_URL`: URL de tu proyecto Supabase
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Clave anónima de Supabase
-- `NEXT_PUBLIC_API_URL`: URL del backend FastAPI en producción
 - `NEXT_PUBLIC_APP_URL`: URL de tu aplicación en Vercel
 
 ## Deploy en Vercel
@@ -116,6 +127,40 @@ Seguir las instrucciones y configurar las variables de entorno cuando se solicit
 
 ## Integración
 
-- **Backend FastAPI**: Predicción de riesgo y APIs
+### Backend y Servicios
+- **Backend FastAPI** (Railway): Predicción de riesgo y APIs
+  - Producción: https://metodicabackend-production.up.railway.app
+  - Endpoints: `/api/student/emotion`, `/api/classroom/*`, `/api/canvas/*`
 - **Supabase**: Base de datos y autenticación
 - **Canvas LMS**: Datos académicos sincronizados
+
+### Extensión de Chrome + n8n (Captura de Emociones)
+
+El sistema captura emociones de estudiantes en tiempo real mediante:
+
+**1. Extensión de Chrome**
+- Se instala en el navegador del estudiante
+- Aparece como widget en Canvas LMS
+- Captura 6 emociones: 😊 Feliz, 😐 Normal, 😰 Estresado, 😢 Triste, 😟 Ansioso, 😤 Molesto
+- Envía datos a webhook de n8n
+
+**2. Webhook n8n**
+- URL: `https://ggpacheco.app.n8n.cloud/webhook/metodika/emotion`
+- Procesa y normaliza los datos
+- Reenvía al backend de Railway
+
+**3. Flujo de datos**
+```
+Estudiante en Canvas → Extensión Chrome → n8n Webhook → Backend Railway → Base de datos
+                                                                          ↓
+                                                        Dashboard del Tutor (actualización)
+```
+
+**4. Configuración n8n**
+El workflow debe incluir:
+- Webhook trigger (POST)
+- Nodo JavaScript para normalizar datos
+- HTTP Request al backend: `POST /api/student/emotion`
+- Payload: `{ student_id, emotion, source, context }`
+
+Ver documentación completa en `/docs/extension-integration.md`
