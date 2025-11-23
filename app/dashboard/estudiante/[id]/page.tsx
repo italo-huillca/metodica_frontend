@@ -16,6 +16,7 @@ import {
   Lightbulb,
 } from "lucide-react";
 import Link from "next/link";
+import { EmotionalTimelineLive } from "@/components/dashboard/emotional-timeline-live";
 
 interface PageProps {
   params: {
@@ -255,44 +256,11 @@ export default async function EstudiantePage({ params }: PageProps) {
 
         {/* Main Content Grid */}
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Timeline Emocional */}
-          <Card className="md:col-span-1">
-            <CardHeader>
-              <CardTitle>Timeline Emocional</CardTitle>
-              <CardDescription>
-                Historial de estados emocionales
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {estudiante.emotional_data.timeline.length > 0 ? (
-                  estudiante.emotional_data.timeline.slice(-5).reverse().map((evento, idx) => (
-                    <div key={idx} className="flex gap-3">
-                      <div className="text-2xl">
-                        {getEmocionEmoji(evento.emotion)}
-                      </div>
-                      <div className="flex-1 space-y-1 pb-4 border-l-2 border-border pl-4 -ml-1">
-                        <p className="text-sm font-medium capitalize">
-                          {getEmocionLabel(evento.emotion)}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {evento.context.replace(/_/g, " ")}
-                        </p>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {getTimeAgo(evento.timestamp)}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No hay eventos emocionales registrados
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Timeline Emocional - Auto-actualización cada 10s */}
+          <EmotionalTimelineLive
+            studentId={params.id}
+            initialData={estudiante}
+          />
 
           {/* Recomendaciones */}
           <Card className="md:col-span-1">
