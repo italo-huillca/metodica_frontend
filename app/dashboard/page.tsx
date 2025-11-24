@@ -48,7 +48,7 @@ export default function DashboardPage() {
 
       // Debug: Ver estudiantes con riesgo alto/crítico
       const highRisk = studentsData.filter(s => 
-        s.risk_level === "riesgo_alto" || s.risk_level === "riesgo_critico" || s.risk_level === "high"
+        s.risk_score >= 66
       );
       console.log("🔴 Estudiantes con riesgo alto/crítico:", highRisk.length, highRisk.map(s => ({
         name: s.name,
