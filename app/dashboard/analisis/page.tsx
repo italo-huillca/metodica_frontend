@@ -78,18 +78,34 @@ export default function AnalisisPage() {
     .filter(s => s.risk_level === "excelente" || s.risk_level === "bueno")
     .slice(0, 2);
 
-  // Obtener cursos únicos de todos los estudiantes
+  // Obtener cursos únicos de todos los estudiantes (manejar estudiantes sin cursos)
   const cursosUnicos = Array.from(
     new Set(
-      fullStudents.flatMap(s => s.seva_data.cursos.map(c => c.nombre))
+      fullStudents.flatMap(s => {
+        // Verificar si tiene cursos SEVA antes de mapear
+        if (s.seva_data?.cursos && s.seva_data.cursos.length > 0) {
+          return s.seva_data.cursos.map(c => c.nombre);
+        }
+        return [];
+      })
     )
   ).sort();
 
-  // Filtrar estudiantes según selección
+  // Filtrar estudiantes según selección (incluir estudiantes sin cursos SEVA)
   const filteredFullStudents = fullStudents.filter(student => {
     const matchesRisk = selectedRiskLevel === "todos" || student.risk_profile.level === selectedRiskLevel;
+
+    // Si el curso es "todos", incluir todos los estudiantes
+    // Si el estudiante no tiene cursos SEVA, solo incluirlo si el curso es "todos"
+    const hasCourses = student.seva_data?.cursos && student.seva_data.cursos.length > 0;
     const matchesCourse = selectedCourse === "todos" ||
-      student.seva_data.cursos.some(c => c.nombre === selectedCourse);
+      (hasCourses && student.seva_data.cursos.some(c => c.nombre === selectedCourse));
+
+    // Para estudiantes sin cursos (Canvas Users), solo filtrar por riesgo
+    if (!hasCourses) {
+      return matchesRisk && selectedCourse === "todos";
+    }
+
     return matchesRisk && matchesCourse;
   });
 

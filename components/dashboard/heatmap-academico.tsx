@@ -23,6 +23,11 @@ export const HeatmapAcademico = memo(function HeatmapAcademico({ students, selec
     }> = [];
 
     students.forEach(student => {
+      // Verificar si el estudiante tiene cursos SEVA
+      if (!student.seva_data?.cursos || student.seva_data.cursos.length === 0) {
+        return; // Saltar estudiantes sin cursos SEVA (Canvas Users)
+      }
+
       const cursos = selectedCourse === "todos"
         ? student.seva_data.cursos
         : student.seva_data.cursos.filter(c => c.nombre === selectedCourse);
@@ -110,15 +115,36 @@ export const HeatmapAcademico = memo(function HeatmapAcademico({ students, selec
     return cell ? cell.valor : null;
   };
 
+  const estudiantesSinDatos = students.filter(s => !s.seva_data?.cursos || s.seva_data.cursos.length === 0);
+
   if (data.length === 0) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Heatmap Académico</CardTitle>
           <CardDescription>
-            No hay datos de evaluaciones disponibles para los filtros seleccionados
+            No hay datos de evaluaciones SEVA disponibles para los filtros seleccionados
           </CardDescription>
         </CardHeader>
+        {estudiantesSinDatos.length > 0 && (
+          <CardContent>
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm font-medium text-yellow-900 mb-2">
+                ⚠️ Estudiantes sin datos académicos SEVA:
+              </p>
+              <ul className="text-sm text-yellow-800 list-disc list-inside">
+                {estudiantesSinDatos.map(s => (
+                  <li key={s.student_id}>
+                    {s.name} ({s.sis_id || s.student_id}) - Usuario de Canvas sin datos SEVA
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-yellow-700 mt-2">
+                Estos estudiantes aparecen en el Heatmap Emocional pero no tienen calificaciones en SEVA.
+              </p>
+            </div>
+          </CardContent>
+        )}
       </Card>
     );
   }

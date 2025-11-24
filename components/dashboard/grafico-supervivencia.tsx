@@ -2,37 +2,35 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import type { StudentSummary } from "@/types";
+import { cn } from "@/lib/utils";
 
 interface GraficoSupervivenciaProps {
   students: StudentSummary[];
 }
 
 export const GraficoSupervivencia = memo(function GraficoSupervivencia({ students }: GraficoSupervivenciaProps) {
+  const [hiddenStudents, setHiddenStudents] = useState<Set<string>>(new Set());
+
   // Generar datos de supervivencia basados en estudiantes reales
   const supervivenciaData = useMemo(() => {
     if (students.length === 0) return [];
 
-    // Tomar TODOS los estudiantes filtrados (no solo 1 por nivel)
-    // Ordenar por risk_score para mostrar curvas representativas
+    // Tomar estudiantes representativos
     const estudiantesOrdenados = [...students].sort((a, b) => b.risk_score - a.risk_score);
 
-    // Seleccionar estudiantes representativos:
-    // - Si hay muchos estudiantes (>10), tomar 1 de cada 10%
-    // - Si hay pocos (<10), mostrar todos
+    // Limitar a máximo 5 estudiantes para evitar amontonamiento
     let estudiantesSeleccionados: StudentSummary[];
 
-    if (estudiantesOrdenados.length <= 10) {
-      // Mostrar todos si son pocos
+    if (estudiantesOrdenados.length <= 5) {
       estudiantesSeleccionados = estudiantesOrdenados;
     } else {
-      // Tomar estudiantes representativos de diferentes niveles de riesgo
-      const step = Math.floor(estudiantesOrdenados.length / 8); // Máximo 8 líneas
+      // Tomar 5 estudiantes representativos de diferentes niveles
+      const step = Math.floor(estudiantesOrdenados.length / 5);
       estudiantesSeleccionados = [];
-      for (let i = 0; i < estudiantesOrdenados.length; i += step) {
+      for (let i = 0; i < estudiantesOrdenados.length && estudiantesSeleccionados.length < 5; i += step) {
         estudiantesSeleccionados.push(estudiantesOrdenados[i]);
-        if (estudiantesSeleccionados.length >= 8) break;
       }
     }
 
@@ -43,12 +41,11 @@ export const GraficoSupervivencia = memo(function GraficoSupervivencia({ student
     const datosIndividuales = estudiantesSeleccionados.flatMap(student =>
       semanas.map(semana => {
         // Función exponencial: P(t) = 100 * e^(-λt)
-        // λ (lambda) es proporcional al risk_score
-        const lambda = (student.risk_score / 100) * 0.15; // Factor de decaimiento
+        const lambda = (student.risk_score / 100) * 0.15;
         const probabilidad = 100 * Math.exp(-lambda * semana);
 
         return {
-          estudiante: student.name, // Nombre completo
+          estudiante: student.name,
           tiempo: semana,
           probabilidad: Math.round(Math.max(0, Math.min(100, probabilidad)) * 100) / 100,
           riskScore: student.risk_score
@@ -73,7 +70,7 @@ export const GraficoSupervivencia = memo(function GraficoSupervivencia({ student
     return [...datosIndividuales, ...promedioSalon];
   }, [students]);
 
-  // Transformar datos para Recharts - memoizado para evitar recálculos
+  // Transformar datos para Recharts
   const chartData = useMemo(() => {
     return supervivenciaData.reduce((acc, item) => {
       const existing = acc.find((d) => d.tiempo === item.tiempo);
@@ -107,23 +104,23 @@ export const GraficoSupervivencia = memo(function GraficoSupervivencia({ student
     return estudiantesConRiesgo.map(e => e.nombre);
   }, [estudiantesConRiesgo]);
 
-  // Configuración de colores para cada línea basada en risk_score
+  // Configuración de colores
   const colores = useMemo(() => {
     const result: Record<string, string> = {};
 
     estudiantesConRiesgo.forEach(({ nombre, riskScore }) => {
       if (nombre === "Promedio Salón") {
-        result[nombre] = "#3b82f6"; // Azul
+        result[nombre] = "#3b82f6";
       } else if (riskScore >= 80) {
-        result[nombre] = "#dc2626"; // Rojo oscuro (crítico)
+        result[nombre] = "#dc2626";
       } else if (riskScore >= 65) {
-        result[nombre] = "#ef4444"; // Rojo (alto)
+        result[nombre] = "#ef4444";
       } else if (riskScore >= 50) {
-        result[nombre] = "#f97316"; // Naranja (moderado)
+        result[nombre] = "#f97316";
       } else if (riskScore >= 30) {
-        result[nombre] = "#eab308"; // Amarillo (regular)
+        result[nombre] = "#eab308";
       } else {
-        result[nombre] = "#22c55e"; // Verde (bueno)
+        result[nombre] = "#22c55e";
       }
     });
 
@@ -136,6 +133,16 @@ export const GraficoSupervivencia = memo(function GraficoSupervivencia({ student
     if (score >= 50) return "Moderado";
     if (score >= 30) return "Regular";
     return "Bajo";
+  };
+
+  const toggleStudent = (studentName: string) => {
+    const newHidden = new Set(hiddenStudents);
+    if (newHidden.has(studentName)) {
+      newHidden.delete(studentName);
+    } else {
+      newHidden.add(studentName);
+    }
+    setHiddenStudents(newHidden);
   };
 
   if (chartData.length === 0) {
@@ -151,45 +158,85 @@ export const GraficoSupervivencia = memo(function GraficoSupervivencia({ student
     );
   }
 
+  const visibleStudents = estudiantes.filter(e => !hiddenStudents.has(e));
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Curva de Supervivencia</CardTitle>
+        <CardTitle>Curva de Supervivencia (Interactiva)</CardTitle>
         <CardDescription>
-          Probabilidad de permanencia estimada en las próximas semanas ({estudiantes.length - 1} estudiantes mostrados)
+          Probabilidad de permanencia • Haz clic en los nombres para mostrar/ocultar líneas
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="h-[400px]">
+        {/* Leyenda interactiva */}
+        <div className="mb-4 p-3 bg-muted rounded-lg">
+          <p className="text-xs font-semibold mb-2">Estudiantes (haz clic para ocultar/mostrar):</p>
+          <div className="flex flex-wrap gap-2">
+            {estudiantesConRiesgo.map(({ nombre, riskScore }) => (
+              <button
+                key={nombre}
+                onClick={() => toggleStudent(nombre)}
+                className={cn(
+                  "px-3 py-1 rounded-full text-xs font-medium transition-all",
+                  hiddenStudents.has(nombre)
+                    ? "bg-gray-200 text-gray-400 line-through opacity-50"
+                    : "text-white shadow-sm hover:shadow-md"
+                )}
+                style={{
+                  backgroundColor: hiddenStudents.has(nombre) ? undefined : colores[nombre]
+                }}
+              >
+                {nombre === "Promedio Salón" ? nombre : `${nombre.split(",")[0]} (${getRiskLabel(riskScore)})`}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Gráfico */}
+        <div className="h-[450px]">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={chartData}
-              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              margin={{ top: 5, right: 30, left: 70, bottom: 5 }}
             >
-              <CartesianGrid strokeDasharray="3 3" />
+              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
               <XAxis
                 dataKey="tiempo"
-                label={{ value: "Semanas", position: "insideBottom", offset: -5 }}
+                label={{
+                  value: "Semanas",
+                  position: "insideBottom",
+                  offset: -5,
+                  style: { fontWeight: 600 }
+                }}
+                tick={{ fontSize: 12 }}
               />
               <YAxis
-                label={{ value: "Probabilidad de Permanencia (%)", angle: -90, position: "insideLeft" }}
+                label={{
+                  value: "Probabilidad de Permanencia (%)",
+                  angle: -90,
+                  position: "insideLeft",
+                  offset: 10,
+                  style: { textAnchor: 'middle', fontWeight: 600, fontSize: 12 }
+                }}
                 domain={[0, 100]}
+                tick={{ fontSize: 12 }}
               />
               <Tooltip
-                formatter={(value: number) => `${typeof value === 'number' ? value.toFixed(2) : value}%`}
+                contentStyle={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  border: '1px solid #ccc',
+                  borderRadius: '8px',
+                  padding: '10px'
+                }}
+                formatter={(value: number, name: string) => {
+                  const estudiante = estudiantesConRiesgo.find(e => e.nombre === name);
+                  const riskLabel = estudiante ? ` (${getRiskLabel(estudiante.riskScore)})` : '';
+                  return [`${value.toFixed(1)}%`, `${name}${riskLabel}`];
+                }}
                 labelFormatter={(label) => `Semana ${label}`}
               />
-              <Legend
-                wrapperStyle={{ fontSize: '12px' }}
-                formatter={(value) => {
-                  const estudiante = estudiantesConRiesgo.find(e => e.nombre === value);
-                  if (!estudiante) return value;
-                  if (value === "Promedio Salón") return value;
-                  const riskLabel = getRiskLabel(estudiante.riskScore);
-                  return `${value} (${riskLabel})`;
-                }}
-              />
-              {estudiantes.map((estudiante) => (
+              {visibleStudents.map((estudiante) => (
                 <Line
                   key={estudiante}
                   type="monotone"
@@ -199,6 +246,7 @@ export const GraficoSupervivencia = memo(function GraficoSupervivencia({ student
                   strokeDasharray={estudiante === "Promedio Salón" ? "5 5" : "0"}
                   dot={false}
                   activeDot={{ r: 6 }}
+                  animationDuration={500}
                 />
               ))}
             </LineChart>
@@ -207,23 +255,26 @@ export const GraficoSupervivencia = memo(function GraficoSupervivencia({ student
 
         {/* Interpretación */}
         <div className="mt-4 p-4 bg-muted rounded-lg">
-          <h4 className="text-sm font-semibold mb-2">Interpretación:</h4>
+          <h4 className="text-sm font-semibold mb-2">💡 Cómo interpretar:</h4>
           <ul className="space-y-1 text-xs text-muted-foreground">
             <li>
-              • <strong className="text-foreground">Línea más pronunciada hacia abajo:</strong> Mayor riesgo de deserción
+              • <strong className="text-foreground">Línea descendente pronunciada:</strong> Mayor riesgo de deserción
             </li>
             <li>
-              • <strong className="text-foreground">Colores:</strong> Rojo (Crítico/Alto) → Naranja (Moderado) → Amarillo (Regular) → Verde (Bajo)
+              • <strong className="text-foreground">Colores:</strong> {' '}
+              <span className="text-red-600">Rojo (Crítico/Alto)</span> → {' '}
+              <span className="text-orange-600">Naranja (Moderado)</span> → {' '}
+              <span className="text-yellow-600">Amarillo (Regular)</span> → {' '}
+              <span className="text-green-600">Verde (Bajo)</span>
             </li>
-            {estudiantes.includes("Promedio Salón") && (
-              <li>
-                • <strong className="text-foreground" style={{ color: colores["Promedio Salón"] }}>
-                  Promedio Salón (línea punteada):
-                </strong> Tendencia general del grupo filtrado
-              </li>
-            )}
             <li>
-              • <strong className="text-foreground">Mostrando {estudiantes.length - 1} estudiantes</strong> según filtros aplicados
+              • <strong className="text-foreground">Línea punteada azul:</strong> Promedio del grupo filtrado
+            </li>
+            <li>
+              • <strong className="text-foreground">Interactividad:</strong> Haz clic en los nombres arriba para ocultar/mostrar líneas
+            </li>
+            <li>
+              • Mostrando máximo 5 estudiantes representativos de {students.length} estudiantes filtrados
             </li>
           </ul>
         </div>
