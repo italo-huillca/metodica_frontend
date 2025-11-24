@@ -17,6 +17,8 @@ export default function AnalisisPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRiskLevel, setSelectedRiskLevel] = useState<RiskLevel | "todos">("todos");
   const [selectedCourse, setSelectedCourse] = useState<string>("todos");
+  const [showHeatmapAcademico, setShowHeatmapAcademico] = useState(true);
+  const [showHeatmapEmocional, setShowHeatmapEmocional] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
@@ -178,8 +180,34 @@ export default function AnalisisPage() {
           </div>
 
           {/* Contador de estudiantes filtrados */}
-          <div className="mt-4 text-sm text-muted-foreground">
-            Mostrando {filteredFullStudents.length} de {fullStudents.length} estudiantes
+          <div className="mt-4 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Mostrando {filteredFullStudents.length} de {fullStudents.length} estudiantes
+              </p>
+
+              {/* Controles de visualización */}
+              <div className="flex gap-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={showHeatmapAcademico}
+                    onChange={(e) => setShowHeatmapAcademico(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>Heatmap Académico</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={showHeatmapEmocional}
+                    onChange={(e) => setShowHeatmapEmocional(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>Heatmap Emocional</span>
+                </label>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -244,10 +272,14 @@ export default function AnalisisPage() {
       <GraficoSupervivencia students={filteredStudents} />
 
       {/* Heatmap Académico */}
-      <HeatmapAcademico students={filteredFullStudents} selectedCourse={selectedCourse} />
+      {showHeatmapAcademico && (
+        <HeatmapAcademico students={filteredFullStudents} selectedCourse={selectedCourse} />
+      )}
 
       {/* Heatmap Emocional */}
-      <HeatmapEmocional students={filteredFullStudents} />
+      {showHeatmapEmocional && (
+        <HeatmapEmocional students={filteredFullStudents} />
+      )}
 
       {/* Recomendaciones basadas en análisis */}
       <Card>

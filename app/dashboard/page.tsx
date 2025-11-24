@@ -28,23 +28,25 @@ export default async function DashboardPage() {
     .sort((a, b) => b.risk_score - a.risk_score)
     .slice(0, 5);
 
-  // Alertas de estudiantes críticos
+  // Alertas de estudiantes críticos - usar timestamps reales
   const alertasRecientes = [
     ...stats.students_critical.map((s, index) => ({
       id: `critical-${s.id || index}`,
       titulo: `Riesgo crítico: ${s.nombre}`,
       mensaje: s.top_factors[0]?.description || "Requiere intervención inmediata",
       nivel: "error" as const,
-      created_at: new Date().toISOString(),
+      created_at: s.top_factors[0]?.timestamp || new Date(Date.now() - index * 60000).toISOString(), // Usar timestamp real o generar con offset
     })),
     ...stats.students_at_high_risk.slice(0, 3).map((s, index) => ({
       id: `high-${s.id || index}`,
       titulo: `Riesgo alto: ${s.nombre}`,
       mensaje: s.top_factors[0]?.description || "Monitoreo requerido",
       nivel: "warning" as const,
-      created_at: new Date().toISOString(),
+      created_at: s.top_factors[0]?.timestamp || new Date(Date.now() - (index + stats.students_critical.length) * 60000).toISOString(), // Usar timestamp real
     })),
-  ].slice(0, 5);
+  ]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) // Ordenar por fecha más reciente
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">

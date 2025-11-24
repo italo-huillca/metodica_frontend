@@ -48,7 +48,7 @@ export const HeatmapEmocional = memo(function HeatmapEmocional({ students }: Hea
           const valor = getEmotionValue(emocionMasReciente);
 
           data.push({
-            estudiante: student.name.split(",")[0],
+            estudiante: student.name, // Nombre completo
             dia,
             emocion: emocionMasReciente,
             valor
@@ -56,7 +56,7 @@ export const HeatmapEmocional = memo(function HeatmapEmocional({ students }: Hea
         } else {
           // Si no hay datos para ese día, usar emoción neutral
           data.push({
-            estudiante: student.name.split(",")[0],
+            estudiante: student.name, // Nombre completo
             dia,
             emocion: null,
             valor: 3

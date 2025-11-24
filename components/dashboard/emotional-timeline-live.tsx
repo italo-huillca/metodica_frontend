@@ -48,14 +48,17 @@ function getEmocionLabel(emotion: string): string {
 }
 
 export function EmotionalTimelineLive({ studentId, initialData }: EmotionalTimelineLiveProps) {
-  // Auto-actualización cada 10 segundos
-  const { data: estudiante, isLoading, isFetching } = useQuery({
+  // Auto-actualización cada 5 segundos (más frecuente)
+  const { data: estudiante, isLoading, isFetching, isError, error } = useQuery({
     queryKey: ["student", studentId],
     queryFn: () => classroomService.getStudent(studentId),
     initialData: initialData,
-    refetchInterval: 10000, // 10 segundos
+    refetchInterval: 5000, // 5 segundos (más frecuente)
     refetchOnWindowFocus: true,
-    staleTime: 5000, // Considera los datos stale después de 5 segundos
+    refetchOnMount: true,
+    refetchIntervalInBackground: false, // No actualizar en background para ahorrar recursos
+    staleTime: 2000, // Considera los datos stale después de 2 segundos
+    retry: 2, // Reintentar 2 veces si falla
   });
 
   const timeline = estudiante?.emotional_data?.timeline || [];
@@ -68,18 +71,27 @@ export function EmotionalTimelineLive({ studentId, initialData }: EmotionalTimel
           <div>
             <CardTitle>Timeline Emocional</CardTitle>
             <CardDescription>
-              Historial de estados emocionales
+              {isError ? (
+                <span className="text-red-500">Error al cargar datos</span>
+              ) : (
+                <>Historial de estados emocionales • {timeline.length} eventos</>
+              )}
             </CardDescription>
           </div>
-          {isUpdating && (
-            <RefreshCw className="h-4 w-4 text-muted-foreground animate-spin" />
-          )}
+          <div className="flex items-center gap-2">
+            {isUpdating && (
+              <RefreshCw className="h-4 w-4 text-muted-foreground animate-spin" />
+            )}
+            <span className="text-xs text-muted-foreground">
+              {isUpdating ? "Actualizando..." : "Actualizado"}
+            </span>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           {timeline.length > 0 ? (
-            timeline.slice(-5).reverse().map((evento, idx) => (
+            timeline.slice(-10).reverse().map((evento, idx) => (
               <div key={`${evento.timestamp}-${idx}`} className="flex gap-3">
                 <div className="text-2xl">
                   {getEmocionEmoji(evento.emotion)}
@@ -107,8 +119,9 @@ export function EmotionalTimelineLive({ studentId, initialData }: EmotionalTimel
 
         {timeline.length > 0 && (
           <div className="mt-4 pt-4 border-t border-border">
-            <p className="text-xs text-muted-foreground text-center">
-              Actualización automática cada 10 segundos
+            <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-2">
+              <Clock className="h-3 w-3" />
+              Actualización automática cada 5 segundos
             </p>
           </div>
         )}

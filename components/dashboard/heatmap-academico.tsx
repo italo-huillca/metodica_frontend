@@ -30,7 +30,7 @@ export const HeatmapAcademico = memo(function HeatmapAcademico({ students, selec
       cursos.forEach(curso => {
         // Agregar promedio del curso
         heatmapData.push({
-          estudiante: student.name.split(",")[0],
+          estudiante: student.name, // Nombre completo
           curso: curso.nombre,
           evaluacion: "Promedio",
           valor: curso.promedio,
@@ -40,7 +40,7 @@ export const HeatmapAcademico = memo(function HeatmapAcademico({ students, selec
         // Agregar pruebas de aula
         curso.evaluaciones.pruebas_aula.forEach((prueba, idx) => {
           heatmapData.push({
-            estudiante: student.name.split(",")[0],
+            estudiante: student.name, // Nombre completo
             curso: curso.nombre,
             evaluacion: `PA${idx + 1}`,
             valor: prueba.nota,
@@ -51,7 +51,7 @@ export const HeatmapAcademico = memo(function HeatmapAcademico({ students, selec
         // Agregar pruebas de laboratorio
         curso.evaluaciones.pruebas_laboratorio.forEach((prueba, idx) => {
           heatmapData.push({
-            estudiante: student.name.split(",")[0],
+            estudiante: student.name, // Nombre completo
             curso: curso.nombre,
             evaluacion: `PL${idx + 1}`,
             valor: prueba.nota,
@@ -62,7 +62,7 @@ export const HeatmapAcademico = memo(function HeatmapAcademico({ students, selec
         // Agregar exámenes
         curso.evaluaciones.examenes.forEach((examen, idx) => {
           heatmapData.push({
-            estudiante: student.name.split(",")[0],
+            estudiante: student.name, // Nombre completo
             curso: curso.nombre,
             evaluacion: `EX${idx + 1}`,
             valor: examen.nota,
