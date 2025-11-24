@@ -7,6 +7,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Search } from "lucide-react";
 import type { StudentSummary, RiskLevel } from "@/types";
+import { TourButton } from "@/components/ui/tour-button";
 
 export default function EstudiantesPage() {
   const [estudiantes, setEstudiantes] = useState<StudentSummary[]>([]);
@@ -17,7 +18,9 @@ export default function EstudiantesPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
         const data = await classroomService.getAllStudents();
+        console.log("Loaded students:", data.length);
         setEstudiantes(data);
       } catch (error) {
         console.error("Error loading students:", error);
@@ -86,7 +89,7 @@ export default function EstudiantesPage() {
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Search */}
-            <div className="flex-1 relative">
+            <div className="flex-1 relative" data-tour="search-bar">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
@@ -98,7 +101,7 @@ export default function EstudiantesPage() {
             </div>
 
             {/* Risk Filter */}
-            <div className="flex gap-2">
+            <div className="flex gap-2" data-tour="risk-filters">
               <button
                 onClick={() => setFiltroRiesgo("todos")}
                 className={cn(
@@ -171,18 +174,18 @@ export default function EstudiantesPage() {
       </Card>
 
       {/* Results count */}
-      <div className="text-sm text-muted-foreground">
+      <div className="text-sm text-muted-foreground" data-tour="results-count">
         Mostrando {estudiantesFiltrados.length} de {estudiantes.length} estudiantes
       </div>
 
       {/* Students Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {estudiantesFiltrados.map((estudiante) => (
+        {estudiantesFiltrados.map((estudiante, index) => (
           <Link
             key={estudiante.student_id}
             href={`/dashboard/estudiante/${estudiante.student_id}`}
           >
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full" data-tour={index === 0 ? "student-card" : undefined}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -263,6 +266,9 @@ export default function EstudiantesPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Botón de Tutorial Flotante */}
+      <TourButton page="estudiantes" />
     </div>
   );
 }

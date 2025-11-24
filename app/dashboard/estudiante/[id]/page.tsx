@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { EmotionalTimelineLive } from "@/components/dashboard/emotional-timeline-live";
+import { TourButton } from "@/components/ui/tour-button";
 
 interface PageProps {
   params: {
@@ -100,7 +101,7 @@ export default async function EstudiantePage({ params }: PageProps) {
         </Link>
 
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between" data-tour="student-header">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
               {estudiante.name}
@@ -124,7 +125,7 @@ export default async function EstudiantePage({ params }: PageProps) {
         </div>
 
         {/* Risk Overview */}
-        <Card>
+        <Card data-tour="risk-overview">
           <CardHeader>
             <CardTitle>Resumen de Riesgo</CardTitle>
             <CardDescription>
@@ -257,10 +258,12 @@ export default async function EstudiantePage({ params }: PageProps) {
         {/* Main Content Grid */}
         <div className="grid gap-6 md:grid-cols-2">
           {/* Timeline Emocional - Auto-actualización cada 10s */}
-          <EmotionalTimelineLive
-            studentId={params.id}
-            initialData={estudiante}
-          />
+          <div data-tour="emotional-timeline">
+            <EmotionalTimelineLive
+              studentId={params.id}
+              initialData={estudiante}
+            />
+          </div>
 
           {/* Recomendaciones */}
           <Card className="md:col-span-1">
@@ -328,7 +331,7 @@ export default async function EstudiantePage({ params }: PageProps) {
         </div>
 
         {/* Academic Details - Cursos SEVA */}
-        <Card>
+        <Card data-tour="academic-details">
           <CardHeader>
             <CardTitle>Detalle por Curso</CardTitle>
             <CardDescription>
@@ -396,6 +399,8 @@ export default async function EstudiantePage({ params }: PageProps) {
             )}
           </CardContent>
         </Card>
+
+        <TourButton page="student-profile" />
       </div>
     );
   } catch (error) {

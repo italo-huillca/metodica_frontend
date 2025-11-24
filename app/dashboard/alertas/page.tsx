@@ -16,8 +16,13 @@ import {
   UserCircle,
   XCircle,
   Loader2,
+  Clock,
 } from "lucide-react";
 import Link from "next/link";
+import { SurvivalAlerts } from "@/components/dashboard/survival-alerts";
+import { generateSurvivalAlerts, type SurvivalPrediction } from "@/lib/utils/survival";
+import type { StudentSummary } from "@/types";
+import { TourButton } from "@/components/ui/tour-button";
 
 function getTimeAgo(dateString: string): string {
   if (!dateString) return "Recientemente";
@@ -66,6 +71,7 @@ interface AlertWithStudent {
 
 export default function AlertasPage() {
   const [alerts, setAlerts] = useState<AlertWithStudent[]>([]);
+  const [survivalPredictions, setSurvivalPredictions] = useState<SurvivalPrediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroTipo, setFiltroTipo] = useState<string>("todos");
   const [mostrarLeidas, setMostrarLeidas] = useState(false);
@@ -75,6 +81,10 @@ export default function AlertasPage() {
       try {
         // Obtener todos los estudiantes
         const students = await classroomService.getAllStudents();
+        
+        // Generar predicciones de supervivencia
+        const predictions = generateSurvivalAlerts(students);
+        setSurvivalPredictions(predictions);
         
         // Obtener alertas de cada estudiante en riesgo
         const alertsPromises = students
@@ -114,6 +124,7 @@ export default function AlertasPage() {
   const alertasNoLeidas = alerts.filter((a) => !a.acknowledged).length;
   const alertasCriticas = alerts.filter((a) => a.severity === "high" || a.severity === "critical").length;
   const alertasAdvertencias = alerts.filter((a) => a.severity === "medium").length;
+  const alertasSupervivencia = survivalPredictions.filter(p => p.urgency === "immediate" || p.urgency === "high").length;
 
   if (loading) {
     return (
@@ -134,29 +145,29 @@ export default function AlertasPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-4" data-tour="alerts-stats">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sin Leer</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-600" />
+            <CardTitle className="text-sm font-medium">Supervivencia</CardTitle>
+            <Clock className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{alertasNoLeidas}</div>
+            <div className="text-2xl font-bold text-red-600">{alertasSupervivencia}</div>
             <p className="text-xs text-muted-foreground">
-              Requieren atención
+              Riesgo inminente
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Alertas</CardTitle>
-            <Info className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Sin Leer</CardTitle>
+            <AlertCircle className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{alerts.length}</div>
+            <div className="text-2xl font-bold text-orange-600">{alertasNoLeidas}</div>
             <p className="text-xs text-muted-foreground">
-              Todas las alertas
+              Requieren atención
             </p>
           </CardContent>
         </Card>
@@ -178,22 +189,20 @@ export default function AlertasPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Advertencias</CardTitle>
-            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <CardTitle className="text-sm font-medium">Total Alertas</CardTitle>
+            <Info className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              {alertasAdvertencias}
-            </div>
+            <div className="text-2xl font-bold">{alerts.length}</div>
             <p className="text-xs text-muted-foreground">
-              Nivel medio
+              Todas las alertas
             </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
-      <Card>
+      <Card data-tour="alerts-filters">
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Type Filter */}
@@ -263,13 +272,20 @@ export default function AlertasPage() {
         </CardContent>
       </Card>
 
+      {/* Survival Predictions Section */}
+      {survivalPredictions.length > 0 && (
+        <div data-tour="survival-alerts-section">
+          <SurvivalAlerts predictions={survivalPredictions} maxDisplay={10} />
+        </div>
+      )}
+
       {/* Results count */}
       <div className="text-sm text-muted-foreground">
-        Mostrando {alertasFiltradas.length} de {alerts.length} alertas
+        Mostrando {alertasFiltradas.length} de {alerts.length} alertas tradicionales
       </div>
 
       {/* Alerts List */}
-      <div className="space-y-3">
+      <div className="space-y-3" data-tour="alerts-list">
         {alertasFiltradas.length > 0 ? (
           alertasFiltradas.map((alerta) => {
             const isError = alerta.severity === "high" || alerta.severity === "critical";
@@ -370,6 +386,8 @@ export default function AlertasPage() {
           </Card>
         )}
       </div>
+
+      <TourButton page="alertas" />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { ThemeSelector } from "@/components/ui/theme-selector";
 import { Palette, Bell, Shield, Settings, Database, TrendingUp, Loader2, CheckCircle2, XCircle, Link as LinkIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { canvasService } from "@/lib/api/services";
+import { TourButton } from "@/components/ui/tour-button";
 
 export default function ConfiguracionPage() {
   const [notificaciones, setNotificaciones] = useState({
@@ -128,7 +129,7 @@ export default function ConfiguracionPage() {
       </div>
 
       {/* Tema de la Aplicación */}
-      <Card>
+      <Card data-tour="theme-selector">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Palette className="h-5 w-5 text-primary" />
@@ -152,7 +153,7 @@ export default function ConfiguracionPage() {
       </Card>
 
       {/* Notificaciones */}
-      <Card>
+      <Card data-tour="notifications-config">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Bell className="h-5 w-5 text-primary" />
@@ -447,6 +448,8 @@ export default function ConfiguracionPage() {
           </div>
         </CardContent>
       </Card>
+
+      <TourButton page="configuracion" />
     </div>
   );
 }

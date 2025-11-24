@@ -9,16 +9,38 @@ import { BarChart3, TrendingUp, AlertCircle, Loader2, Filter } from "lucide-reac
 import { riskService, classroomService } from "@/lib/api/services";
 import type { EstadisticaSalon, StudentSummary, Estudiante, RiskLevel } from "@/types";
 import { Button } from "@/components/ui/button";
+import { TourButton } from "@/components/ui/tour-button";
 
 // Mapeo de niveles de riesgo del backend (inglés) al frontend (español)
 const RISK_LEVEL_MAP: Record<string, RiskLevel> = {
+  // Niveles bajos / excelentes
   "excellent": "excelente",
+  "low": "excelente",        // Bajo riesgo = Excelente
+  "very_low": "excelente",
+  "minimal": "excelente",
+
+  // Niveles buenos
   "good": "bueno",
+  "low_medium": "bueno",
+
+  // Niveles regulares
   "regular": "regular",
+  "normal": "regular",
+
+  // Niveles moderados
   "medium": "riesgo_moderado",
   "moderate": "riesgo_moderado",
+  "medium_high": "riesgo_moderado",
+
+  // Niveles altos
   "high": "riesgo_alto",
+  "severe": "riesgo_alto",
+
+  // Niveles críticos
   "critical": "riesgo_critico",
+  "very_high": "riesgo_critico",
+  "extreme": "riesgo_critico",
+
   // Por si acaso ya vienen en español
   "excelente": "excelente",
   "bueno": "bueno",
@@ -56,14 +78,6 @@ export default function AnalisisPage() {
         ]);
 
         console.log("📊 Estudiantes cargados:", studentsData.length);
-        console.log("🔍 Buscando Guerra Pacheco...");
-        const guerraPacheco = studentsData.find(s => s.name.includes("Guerra Pacheco"));
-        if (guerraPacheco) {
-          console.log("✅ Guerra Pacheco encontrado:", guerraPacheco);
-        } else {
-          console.log("❌ Guerra Pacheco NO encontrado en la lista");
-          console.log("Nombres disponibles:", studentsData.map(s => s.name));
-        }
 
         setStats(statsData);
         setStudents(studentsData);
@@ -85,16 +99,17 @@ export default function AnalisisPage() {
         const validFullStudents = fullStudentsData.filter(s => s !== null) as Estudiante[];
         console.log("✅ Datos completos cargados:", validFullStudents.length);
 
-        const guerraFull = validFullStudents.find(s => s.name.includes("Guerra Pacheco"));
-        if (guerraFull) {
-          console.log("✅ Guerra Pacheco datos completos:", {
-            name: guerraFull.name,
-            risk_level: guerraFull.risk_profile.level,
-            risk_score: guerraFull.risk_profile.score,
-            tiene_cursos: guerraFull.seva_data?.cursos?.length || 0,
-            tiene_emociones: guerraFull.emotional_data?.timeline?.length || 0
-          });
-        }
+        // Log de todos los niveles de riesgo únicos encontrados
+        const uniqueRiskLevels = Array.from(new Set(validFullStudents.map(s => s.risk_profile.level)));
+        console.log("📋 Niveles de riesgo únicos del backend:", uniqueRiskLevels);
+
+        // Mostrar distribución por nivel
+        const distribution: Record<string, number> = {};
+        validFullStudents.forEach(s => {
+          const level = s.risk_profile.level;
+          distribution[level] = (distribution[level] || 0) + 1;
+        });
+        console.log("📊 Distribución de niveles:", distribution);
 
         setFullStudents(validFullStudents);
       } catch (error) {
@@ -165,21 +180,6 @@ export default function AnalisisPage() {
     const matchesCourse = selectedCourse === "todos" ||
       (hasCourses && student.seva_data.cursos.some(c => c.nombre === selectedCourse));
 
-    // Debug para Guerra Pacheco
-    if (student.name.includes("Guerra Pacheco")) {
-      console.log("🔍 Filtro Guerra Pacheco:", {
-        name: student.name,
-        risk_level_original: student.risk_profile.level,
-        risk_level_normalized: normalizedRiskLevel,
-        selectedRiskLevel,
-        matchesRisk,
-        hasCourses,
-        selectedCourse,
-        matchesCourse,
-        willShow: (!hasCourses && matchesRisk && selectedCourse === "todos") || (matchesRisk && matchesCourse)
-      });
-    }
-
     // Para estudiantes sin cursos (Canvas Users), solo filtrar por riesgo
     if (!hasCourses) {
       return matchesRisk && selectedCourse === "todos";
@@ -201,8 +201,7 @@ export default function AnalisisPage() {
     filteredFullStudents: filteredFullStudents.length,
     totalStudents: students.length,
     filteredStudents: filteredStudents.length,
-    guerraPachecoEnFull: fullStudents.some(s => s.name.includes("Guerra Pacheco")),
-    guerraPachecoEnFiltered: filteredFullStudents.some(s => s.name.includes("Guerra Pacheco"))
+
   });
 
   return (
@@ -216,7 +215,7 @@ export default function AnalisisPage() {
       </div>
 
       {/* Filtros */}
-      <Card>
+      <Card data-tour="analysis-filters">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
@@ -377,16 +376,22 @@ export default function AnalisisPage() {
       </div>
 
       {/* Gráfico de Supervivencia */}
-      <GraficoSupervivencia students={filteredStudents} />
+      <div data-tour="survival-graph">
+        <GraficoSupervivencia students={filteredStudents} />
+      </div>
 
       {/* Heatmap Académico */}
       {showHeatmapAcademico && (
-        <HeatmapAcademico students={filteredFullStudents} selectedCourse={selectedCourse} />
+        <div data-tour="heatmap-academic">
+          <HeatmapAcademico students={filteredFullStudents} selectedCourse={selectedCourse} />
+        </div>
       )}
 
       {/* Heatmap Emocional */}
       {showHeatmapEmocional && (
-        <HeatmapEmocional students={filteredFullStudents} />
+        <div data-tour="heatmap-emotional">
+          <HeatmapEmocional students={filteredFullStudents} />
+        </div>
       )}
 
       {/* Recomendaciones basadas en análisis */}
@@ -490,6 +495,8 @@ export default function AnalisisPage() {
           </div>
         </CardContent>
       </Card>
+
+      <TourButton page="analisis" />
     </div>
   );
 }
