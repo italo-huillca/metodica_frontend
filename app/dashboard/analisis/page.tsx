@@ -10,6 +10,33 @@ import { riskService, classroomService } from "@/lib/api/services";
 import type { EstadisticaSalon, StudentSummary, Estudiante, RiskLevel } from "@/types";
 import { Button } from "@/components/ui/button";
 
+// Mapeo de niveles de riesgo del backend (inglés) al frontend (español)
+const RISK_LEVEL_MAP: Record<string, RiskLevel> = {
+  "excellent": "excelente",
+  "good": "bueno",
+  "regular": "regular",
+  "medium": "riesgo_moderado",
+  "moderate": "riesgo_moderado",
+  "high": "riesgo_alto",
+  "critical": "riesgo_critico",
+  // Por si acaso ya vienen en español
+  "excelente": "excelente",
+  "bueno": "bueno",
+  "riesgo_moderado": "riesgo_moderado",
+  "riesgo_alto": "riesgo_alto",
+  "riesgo_critico": "riesgo_critico",
+};
+
+// Normalizar nivel de riesgo
+function normalizeRiskLevel(level: string): RiskLevel {
+  const normalized = RISK_LEVEL_MAP[level.toLowerCase()];
+  if (!normalized) {
+    console.warn(`⚠️ Nivel de riesgo desconocido: ${level}, usando "regular" por defecto`);
+    return "regular";
+  }
+  return normalized;
+}
+
 export default function AnalisisPage() {
   const [stats, setStats] = useState<EstadisticaSalon | null>(null);
   const [students, setStudents] = useState<StudentSummary[]>([]);
@@ -128,7 +155,9 @@ export default function AnalisisPage() {
 
   // Filtrar estudiantes según selección (incluir estudiantes sin cursos SEVA)
   const filteredFullStudents = fullStudents.filter(student => {
-    const matchesRisk = selectedRiskLevel === "todos" || student.risk_profile.level === selectedRiskLevel;
+    // Normalizar el nivel de riesgo del estudiante
+    const normalizedRiskLevel = normalizeRiskLevel(student.risk_profile.level);
+    const matchesRisk = selectedRiskLevel === "todos" || normalizedRiskLevel === selectedRiskLevel;
 
     // Si el curso es "todos", incluir todos los estudiantes
     // Si el estudiante no tiene cursos SEVA, solo incluirlo si el curso es "todos"
@@ -140,7 +169,8 @@ export default function AnalisisPage() {
     if (student.name.includes("Guerra Pacheco")) {
       console.log("🔍 Filtro Guerra Pacheco:", {
         name: student.name,
-        risk_level: student.risk_profile.level,
+        risk_level_original: student.risk_profile.level,
+        risk_level_normalized: normalizedRiskLevel,
         selectedRiskLevel,
         matchesRisk,
         hasCourses,
@@ -159,7 +189,8 @@ export default function AnalisisPage() {
   });
 
   const filteredStudents = students.filter(student => {
-    return selectedRiskLevel === "todos" || student.risk_level === selectedRiskLevel;
+    const normalizedLevel = normalizeRiskLevel(student.risk_level);
+    return selectedRiskLevel === "todos" || normalizedLevel === selectedRiskLevel;
   });
 
   // Debug del filtrado
