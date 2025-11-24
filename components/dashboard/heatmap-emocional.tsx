@@ -2,36 +2,88 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMemo, memo } from "react";
-import type { StudentSummary } from "@/types";
+import type { Estudiante, EmotionType } from "@/types";
 
 interface HeatmapEmocionalProps {
-  students: StudentSummary[];
+  students: Estudiante[];
 }
 
 export const HeatmapEmocional = memo(function HeatmapEmocional({ students }: HeatmapEmocionalProps) {
-  // Generar datos emocionales basados en estudiantes reales
+  // Generar datos emocionales basados en el timeline real de emociones
   const heatmapEmocionalData = useMemo(() => {
     if (students.length === 0) return [];
-    
-    const dias = ["Lun", "Mar", "Mié", "Jue", "Vie"];
-    
-    return students.flatMap(student => 
-      dias.map(dia => ({
-        estudiante: student.name.split(",")[0],
-        fecha: dia,
-        // Simular estado emocional basado en el nivel de riesgo
-        // Menor riesgo = mejor estado emocional
-        valor: student.risk_score < 30 ? Math.floor(Math.random() * 2) + 4 : // 4-5 (bueno)
-               student.risk_score < 50 ? 3 : // 3 (neutral)
-               student.risk_score < 70 ? 2 : // 2 (negativo)
-               Math.floor(Math.random() * 2) + 1 // 1-2 (muy negativo)
-      }))
-    );
+
+    const data: Array<{
+      estudiante: string;
+      dia: string;
+      emocion: EmotionType | null;
+      valor: number;
+    }> = [];
+
+    const diasSemana = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+
+    students.forEach(student => {
+      // Agrupar emociones por día de la semana
+      const emocionesPorDia = new Map<number, EmotionType[]>();
+
+      student.emotional_data.timeline.forEach(evento => {
+        const fecha = new Date(evento.timestamp);
+        const diaSemana = fecha.getDay(); // 0 = Domingo, 1 = Lunes, ...
+
+        if (!emocionesPorDia.has(diaSemana)) {
+          emocionesPorDia.set(diaSemana, []);
+        }
+        emocionesPorDia.get(diaSemana)!.push(evento.emotion);
+      });
+
+      // Crear datos para cada día
+      diasSemana.forEach((dia, idx) => {
+        // Ajustar índice (nuestro array empieza en Lun, Date.getDay() empieza en Dom)
+        const diaIdx = idx === 6 ? 0 : idx + 1; // Lun=1, Mar=2, ..., Dom=0
+        const emociones = emocionesPorDia.get(diaIdx) || [];
+
+        if (emociones.length > 0) {
+          // Calcular emoción predominante
+          const emocionMasReciente = emociones[emociones.length - 1];
+          const valor = getEmotionValue(emocionMasReciente);
+
+          data.push({
+            estudiante: student.name.split(",")[0],
+            dia,
+            emocion: emocionMasReciente,
+            valor
+          });
+        } else {
+          // Si no hay datos para ese día, usar emoción neutral
+          data.push({
+            estudiante: student.name.split(",")[0],
+            dia,
+            emocion: null,
+            valor: 3
+          });
+        }
+      });
+    });
+
+    return data;
   }, [students]);
-  
+
+  // Convertir emoción a valor numérico (1-5)
+  function getEmotionValue(emotion: EmotionType): number {
+    const emotionValues: Record<EmotionType, number> = {
+      "happy": 5,
+      "neutral": 3,
+      "stressed": 2,
+      "sad": 1,
+      "anxious": 2,
+      "angry": 1
+    };
+    return emotionValues[emotion] || 3;
+  }
+
   // Obtener días únicos
   const dias = useMemo(() => {
-    return Array.from(new Set(heatmapEmocionalData.map((d) => d.fecha))).sort((a, b) => {
+    return Array.from(new Set(heatmapEmocionalData.map((d) => d.dia))).sort((a, b) => {
       const orden = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
       return orden.indexOf(a) - orden.indexOf(b);
     });
@@ -52,38 +104,61 @@ export const HeatmapEmocional = memo(function HeatmapEmocional({ students }: Hea
     return "bg-red-500";
   };
 
-  // Función para obtener emoji según el valor
-  const getEmoji = (valor: number): string => {
-    if (valor === 5) return "😊";
-    if (valor === 4) return "🙂";
-    if (valor === 3) return "😐";
-    if (valor === 2) return "😔";
-    return "😢";
+  // Función para obtener emoji según la emoción real
+  const getEmoji = (emocion: EmotionType | null): string => {
+    if (!emocion) return "😐";
+    const emojis: Record<EmotionType, string> = {
+      happy: "😊",
+      neutral: "😐",
+      sad: "😢",
+      stressed: "😰",
+      anxious: "😟",
+      angry: "😤"
+    };
+    return emojis[emocion] || "😐";
   };
 
-  // Función para obtener texto según el valor
-  const getTexto = (valor: number): string => {
-    if (valor === 5) return "Muy positivo";
-    if (valor === 4) return "Positivo";
-    if (valor === 3) return "Neutral";
-    if (valor === 2) return "Negativo";
-    return "Muy negativo";
+  // Función para obtener texto según la emoción
+  const getTexto = (emocion: EmotionType | null): string => {
+    if (!emocion) return "Sin datos";
+    const textos: Record<EmotionType, string> = {
+      happy: "Feliz",
+      neutral: "Neutral",
+      sad: "Triste",
+      stressed: "Estresado",
+      anxious: "Ansioso",
+      angry: "Enojado"
+    };
+    return textos[emocion] || "Neutral";
   };
 
   // Función para obtener valor de celda
-  const getValue = (estudiante: string, fecha: string): number | null => {
+  const getDataCell = (estudiante: string, dia: string) => {
     const cell = heatmapEmocionalData.find(
-      (d) => d.estudiante === estudiante && d.fecha === fecha
+      (d) => d.estudiante === estudiante && d.dia === dia
     );
-    return cell ? cell.valor : null;
+    return cell || null;
   };
+
+  if (heatmapEmocionalData.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Heatmap Emocional</CardTitle>
+          <CardDescription>
+            No hay datos emocionales disponibles para los filtros seleccionados
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Heatmap Emocional</CardTitle>
         <CardDescription>
-          Estado emocional de estudiantes por día de la semana (1=Muy negativo, 5=Muy positivo)
+          Estado emocional real de estudiantes por día de la semana (datos de timeline emocional)
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -91,7 +166,7 @@ export const HeatmapEmocional = memo(function HeatmapEmocional({ students }: Hea
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th className="border border-border bg-muted p-2 text-left text-xs font-medium">
+                <th className="border border-border bg-muted p-2 text-left text-xs font-medium sticky left-0 z-10">
                   Estudiante
                 </th>
                 {dias.map((dia) => (
@@ -107,27 +182,28 @@ export const HeatmapEmocional = memo(function HeatmapEmocional({ students }: Hea
             <tbody>
               {estudiantes.map((estudiante) => (
                 <tr key={estudiante}>
-                  <td className="border border-border p-2 text-xs font-medium bg-muted/50">
+                  <td className="border border-border p-2 text-xs font-medium bg-muted/50 sticky left-0 z-10">
                     {estudiante}
                   </td>
                   {dias.map((dia) => {
-                    const valor = getValue(estudiante, dia);
+                    const cellData = getDataCell(estudiante, dia);
+                    const valor = cellData?.valor || 3;
+                    const emocion = cellData?.emocion || null;
+
                     return (
                       <td
                         key={`${estudiante}-${dia}`}
                         className="border border-border p-0"
                       >
-                        {valor !== null && (
-                          <div
-                            className={`${getColor(
-                              valor
-                            )} text-white font-semibold text-2xl h-16 w-full flex flex-col items-center justify-center hover:opacity-80 transition-opacity cursor-help`}
-                            title={`${estudiante} - ${dia}: ${getTexto(valor)}`}
-                          >
-                            <span>{getEmoji(valor)}</span>
-                            <span className="text-xs mt-1">{valor}/5</span>
-                          </div>
-                        )}
+                        <div
+                          className={`${getColor(
+                            valor
+                          )} text-white font-semibold text-2xl h-16 w-full flex flex-col items-center justify-center hover:opacity-80 transition-opacity cursor-help`}
+                          title={`${estudiante} - ${dia}: ${getTexto(emocion)}`}
+                        >
+                          <span>{getEmoji(emocion)}</span>
+                          {emocion && <span className="text-xs mt-1">{valor}/5</span>}
+                        </div>
                       </td>
                     );
                   })}
@@ -139,36 +215,33 @@ export const HeatmapEmocional = memo(function HeatmapEmocional({ students }: Hea
 
         {/* Leyenda */}
         <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
-          <span className="font-medium">Escala emocional:</span>
+          <span className="font-medium">Emociones detectadas:</span>
           <div className="flex items-center gap-1">
             <div className="w-6 h-6 bg-red-500 rounded flex items-center justify-center">
               😢
             </div>
-            <span>1 - Muy negativo</span>
+            <span>Triste/Enojado</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-6 h-6 bg-orange-400 rounded flex items-center justify-center">
-              😔
+              😰
             </div>
-            <span>2 - Negativo</span>
+            <span>Estresado/Ansioso</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-6 h-6 bg-yellow-400 rounded flex items-center justify-center">
               😐
             </div>
-            <span>3 - Neutral</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-6 h-6 bg-green-400 rounded flex items-center justify-center">
-              🙂
-            </div>
-            <span>4 - Positivo</span>
+            <span>Neutral</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-6 h-6 bg-green-600 rounded flex items-center justify-center">
               😊
             </div>
-            <span>5 - Muy positivo</span>
+            <span>Feliz</span>
+          </div>
+          <div className="ml-4 text-muted-foreground">
+            Datos reales desde extensión Chrome y auto-reporte
           </div>
         </div>
       </CardContent>

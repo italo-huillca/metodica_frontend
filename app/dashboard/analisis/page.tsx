@@ -5,14 +5,18 @@ import { HeatmapAcademico } from "@/components/dashboard/heatmap-academico";
 import { HeatmapEmocional } from "@/components/dashboard/heatmap-emocional";
 import { GraficoSupervivencia } from "@/components/dashboard/grafico-supervivencia";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, TrendingUp, AlertCircle, Loader2 } from "lucide-react";
+import { BarChart3, TrendingUp, AlertCircle, Loader2, Filter } from "lucide-react";
 import { riskService, classroomService } from "@/lib/api/services";
-import type { EstadisticaSalon, StudentSummary } from "@/types";
+import type { EstadisticaSalon, StudentSummary, Estudiante, RiskLevel } from "@/types";
+import { Button } from "@/components/ui/button";
 
 export default function AnalisisPage() {
   const [stats, setStats] = useState<EstadisticaSalon | null>(null);
   const [students, setStudents] = useState<StudentSummary[]>([]);
+  const [fullStudents, setFullStudents] = useState<Estudiante[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedRiskLevel, setSelectedRiskLevel] = useState<RiskLevel | "todos">("todos");
+  const [selectedCourse, setSelectedCourse] = useState<string>("todos");
 
   useEffect(() => {
     const loadData = async () => {
@@ -23,6 +27,12 @@ export default function AnalisisPage() {
         ]);
         setStats(statsData);
         setStudents(studentsData);
+
+        // Cargar datos completos de cada estudiante para los heatmaps
+        const fullStudentsData = await Promise.all(
+          studentsData.map(s => classroomService.getStudent(s.student_id))
+        );
+        setFullStudents(fullStudentsData);
       } catch (error) {
         console.error("Error cargando datos de análisis:", error);
       } finally {
@@ -66,6 +76,25 @@ export default function AnalisisPage() {
     .filter(s => s.risk_level === "excelente" || s.risk_level === "bueno")
     .slice(0, 2);
 
+  // Obtener cursos únicos de todos los estudiantes
+  const cursosUnicos = Array.from(
+    new Set(
+      fullStudents.flatMap(s => s.seva_data.cursos.map(c => c.nombre))
+    )
+  ).sort();
+
+  // Filtrar estudiantes según selección
+  const filteredFullStudents = fullStudents.filter(student => {
+    const matchesRisk = selectedRiskLevel === "todos" || student.risk_profile.level === selectedRiskLevel;
+    const matchesCourse = selectedCourse === "todos" ||
+      student.seva_data.cursos.some(c => c.nombre === selectedCourse);
+    return matchesRisk && matchesCourse;
+  });
+
+  const filteredStudents = students.filter(student => {
+    return selectedRiskLevel === "todos" || student.risk_level === selectedRiskLevel;
+  });
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -75,6 +104,85 @@ export default function AnalisisPage() {
           Visualizaciones avanzadas y análisis predictivo del salón
         </p>
       </div>
+
+      {/* Filtros */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Filtros de Visualización
+          </CardTitle>
+          <CardDescription>
+            Personaliza las visualizaciones según nivel de riesgo y curso
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-4">
+            {/* Filtro por nivel de riesgo */}
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-sm font-medium mb-2 block">Nivel de Riesgo</label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant={selectedRiskLevel === "todos" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedRiskLevel("todos")}
+                >
+                  Todos ({students.length})
+                </Button>
+                <Button
+                  variant={selectedRiskLevel === "riesgo_critico" ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedRiskLevel("riesgo_critico")}
+                >
+                  Crítico ({stats?.risk_distribution.riesgo_critico || 0})
+                </Button>
+                <Button
+                  variant={selectedRiskLevel === "riesgo_alto" ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedRiskLevel("riesgo_alto")}
+                >
+                  Alto ({stats?.risk_distribution.riesgo_alto || 0})
+                </Button>
+                <Button
+                  variant={selectedRiskLevel === "riesgo_moderado" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedRiskLevel("riesgo_moderado")}
+                >
+                  Moderado ({stats?.risk_distribution.riesgo_moderado || 0})
+                </Button>
+                <Button
+                  variant={selectedRiskLevel === "excelente" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedRiskLevel("excelente")}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  Excelente ({stats?.risk_distribution.excelente || 0})
+                </Button>
+              </div>
+            </div>
+
+            {/* Filtro por curso */}
+            <div className="flex-1 min-w-[200px]">
+              <label className="text-sm font-medium mb-2 block">Curso</label>
+              <select
+                className="w-full p-2 border border-border rounded-md text-sm"
+                value={selectedCourse}
+                onChange={(e) => setSelectedCourse(e.target.value)}
+              >
+                <option value="todos">Todos los cursos</option>
+                {cursosUnicos.map(curso => (
+                  <option key={curso} value={curso}>{curso}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Contador de estudiantes filtrados */}
+          <div className="mt-4 text-sm text-muted-foreground">
+            Mostrando {filteredFullStudents.length} de {fullStudents.length} estudiantes
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Resumen de Insights */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -133,13 +241,13 @@ export default function AnalisisPage() {
       </div>
 
       {/* Gráfico de Supervivencia */}
-      <GraficoSupervivencia students={students} />
+      <GraficoSupervivencia students={filteredStudents} />
 
       {/* Heatmap Académico */}
-      <HeatmapAcademico students={students} />
+      <HeatmapAcademico students={filteredFullStudents} selectedCourse={selectedCourse} />
 
       {/* Heatmap Emocional */}
-      <HeatmapEmocional students={students} />
+      <HeatmapEmocional students={filteredFullStudents} />
 
       {/* Recomendaciones basadas en análisis */}
       <Card>

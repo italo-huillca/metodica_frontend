@@ -2,40 +2,82 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMemo, memo } from "react";
-import type { StudentSummary } from "@/types";
+import type { Estudiante } from "@/types";
 
 interface HeatmapAcademicoProps {
-  students: StudentSummary[];
+  students: Estudiante[];
+  selectedCourse?: string;
 }
 
-export const HeatmapAcademico = memo(function HeatmapAcademico({ students }: HeatmapAcademicoProps) {
-  // Generar datos de heatmap basados en estudiantes reales
+export const HeatmapAcademico = memo(function HeatmapAcademico({ students, selectedCourse = "todos" }: HeatmapAcademicoProps) {
+  // Generar datos de heatmap basados en evaluaciones reales de SEVA
   const data = useMemo(() => {
     if (students.length === 0) return [];
-    
-    // Generar 4 semanas de datos simulados basados en el promedio de cada estudiante
-    const semanas = ["Semana 1", "Semana 2", "Semana 3", "Semana 4"];
-    const cursos = ["Matemáticas", "Programación", "Base de Datos"];
-    
-    return students.flatMap(student => 
-      semanas.flatMap(semana => 
-        cursos.map(curso => {
-          // Simular variación basada en el promedio real del estudiante
-          const valor = student.promedio_acumulado + (Math.random() - 0.5) * 4;
-          return {
-            estudiante: student.name.split(",")[0], // Primer apellido
-            semana,
-            curso,
-            valor: Math.round(Math.max(0, Math.min(20, valor)) * 100) / 100 // Redondear a 2 decimales
-          };
-        })
-      )
-    );
-  }, [students]);
 
-  // Obtener semanas únicas
-  const semanas = useMemo(() => {
-    return Array.from(new Set(data.map((d) => d.semana))).sort();
+    const heatmapData: Array<{
+      estudiante: string;
+      curso: string;
+      evaluacion: string;
+      valor: number;
+      tipo: string;
+    }> = [];
+
+    students.forEach(student => {
+      const cursos = selectedCourse === "todos"
+        ? student.seva_data.cursos
+        : student.seva_data.cursos.filter(c => c.nombre === selectedCourse);
+
+      cursos.forEach(curso => {
+        // Agregar promedio del curso
+        heatmapData.push({
+          estudiante: student.name.split(",")[0],
+          curso: curso.nombre,
+          evaluacion: "Promedio",
+          valor: curso.promedio,
+          tipo: "promedio"
+        });
+
+        // Agregar pruebas de aula
+        curso.evaluaciones.pruebas_aula.forEach((prueba, idx) => {
+          heatmapData.push({
+            estudiante: student.name.split(",")[0],
+            curso: curso.nombre,
+            evaluacion: `PA${idx + 1}`,
+            valor: prueba.nota,
+            tipo: "prueba_aula"
+          });
+        });
+
+        // Agregar pruebas de laboratorio
+        curso.evaluaciones.pruebas_laboratorio.forEach((prueba, idx) => {
+          heatmapData.push({
+            estudiante: student.name.split(",")[0],
+            curso: curso.nombre,
+            evaluacion: `PL${idx + 1}`,
+            valor: prueba.nota,
+            tipo: "prueba_lab"
+          });
+        });
+
+        // Agregar exámenes
+        curso.evaluaciones.examenes.forEach((examen, idx) => {
+          heatmapData.push({
+            estudiante: student.name.split(",")[0],
+            curso: curso.nombre,
+            evaluacion: `EX${idx + 1}`,
+            valor: examen.nota,
+            tipo: "examen"
+          });
+        });
+      });
+    });
+
+    return heatmapData;
+  }, [students, selectedCourse]);
+
+  // Obtener cursos únicos
+  const cursos = useMemo(() => {
+    return Array.from(new Set(data.map((d) => d.curso))).sort();
   }, [data]);
 
   // Obtener estudiantes únicos
@@ -43,10 +85,13 @@ export const HeatmapAcademico = memo(function HeatmapAcademico({ students }: Hea
     return Array.from(new Set(data.map((d) => d.estudiante)));
   }, [data]);
 
-  // Obtener cursos únicos
-  const cursos = useMemo(() => {
-    return Array.from(new Set(data.map((d) => d.curso)));
-  }, [data]);
+  // Obtener evaluaciones únicas por curso
+  const getEvaluaciones = (curso: string) => {
+    const evals = data
+      .filter(d => d.curso === curso)
+      .map(d => d.evaluacion);
+    return Array.from(new Set(evals));
+  };
 
   // Función para obtener color según la nota
   const getColor = (valor: number): string => {
@@ -58,80 +103,96 @@ export const HeatmapAcademico = memo(function HeatmapAcademico({ students }: Hea
   };
 
   // Función para obtener valor de celda
-  const getValue = (estudiante: string, semana: string, curso: string): number | null => {
+  const getValue = (estudiante: string, curso: string, evaluacion: string): number | null => {
     const cell = data.find(
-      (d) => d.estudiante === estudiante && d.semana === semana && d.curso === curso
+      (d) => d.estudiante === estudiante && d.curso === curso && d.evaluacion === evaluacion
     );
     return cell ? cell.valor : null;
   };
+
+  if (data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Heatmap Académico</CardTitle>
+          <CardDescription>
+            No hay datos de evaluaciones disponibles para los filtros seleccionados
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Heatmap Académico</CardTitle>
         <CardDescription>
-          Notas por estudiante, semana y curso (Rojo: &lt;11, Naranja: 11-12, Amarillo: 13, Verde: 14+)
+          Notas reales por estudiante y evaluación (PA: Prueba Aula, PL: Prueba Lab, EX: Examen)
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
-          {cursos.map((curso) => (
-            <div key={curso} className="mb-6">
-              <h4 className="font-semibold mb-2 text-sm">{curso}</h4>
-              <div className="inline-block min-w-full">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr>
-                      <th className="border border-border bg-muted p-2 text-left text-xs font-medium">
-                        Estudiante
-                      </th>
-                      {semanas.map((semana) => (
-                        <th
-                          key={semana}
-                          className="border border-border bg-muted p-2 text-center text-xs font-medium"
-                        >
-                          {semana}
+          {cursos.map((curso) => {
+            const evaluaciones = getEvaluaciones(curso);
+            return (
+              <div key={curso} className="mb-6">
+                <h4 className="font-semibold mb-2 text-sm">{curso}</h4>
+                <div className="inline-block min-w-full">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr>
+                        <th className="border border-border bg-muted p-2 text-left text-xs font-medium sticky left-0 z-10">
+                          Estudiante
                         </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {estudiantes.map((estudiante) => (
-                      <tr key={estudiante}>
-                        <td className="border border-border p-2 text-xs font-medium bg-muted/50">
-                          {estudiante}
-                        </td>
-                        {semanas.map((semana) => {
-                          const valor = getValue(estudiante, semana, curso);
-                          return (
-                            <td
-                              key={`${estudiante}-${semana}`}
-                              className="border border-border p-0"
-                            >
-                              {valor !== null && (
-                                <div
-                                  className={`${getColor(
-                                    valor
-                                  )} text-white font-semibold text-xs h-12 w-full flex items-center justify-center hover:opacity-80 transition-opacity`}
-                                  title={`${estudiante} - ${semana} - ${curso}: ${valor}`}
-                                >
-                                  {valor}
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
+                        {evaluaciones.map((evaluacion) => (
+                          <th
+                            key={evaluacion}
+                            className="border border-border bg-muted p-2 text-center text-xs font-medium"
+                          >
+                            {evaluacion}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {estudiantes.map((estudiante) => (
+                        <tr key={estudiante}>
+                          <td className="border border-border p-2 text-xs font-medium bg-muted/50 sticky left-0 z-10">
+                            {estudiante}
+                          </td>
+                          {evaluaciones.map((evaluacion) => {
+                            const valor = getValue(estudiante, curso, evaluacion);
+                            return (
+                              <td
+                                key={`${estudiante}-${evaluacion}`}
+                                className="border border-border p-0"
+                              >
+                                {valor !== null && (
+                                  <div
+                                    className={`${getColor(
+                                      valor
+                                    )} text-white font-semibold text-xs h-12 w-full flex items-center justify-center hover:opacity-80 transition-opacity`}
+                                    title={`${estudiante} - ${curso} - ${evaluacion}: ${valor.toFixed(2)}`}
+                                  >
+                                    {valor.toFixed(1)}
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Leyenda */}
-        <div className="mt-4 flex items-center gap-4 text-xs">
+        <div className="mt-4 flex flex-wrap items-center gap-4 text-xs">
           <span className="font-medium">Escala:</span>
           <div className="flex items-center gap-1">
             <div className="w-4 h-4 bg-red-500 rounded"></div>
@@ -152,6 +213,9 @@ export const HeatmapAcademico = memo(function HeatmapAcademico({ students }: Hea
           <div className="flex items-center gap-1">
             <div className="w-4 h-4 bg-green-600 rounded"></div>
             <span>16+</span>
+          </div>
+          <div className="ml-4 text-muted-foreground">
+            Datos reales desde SEVA • PA: Prueba Aula • PL: Prueba Lab • EX: Examen
           </div>
         </div>
       </CardContent>
