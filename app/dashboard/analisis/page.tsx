@@ -27,14 +27,49 @@ export default function AnalisisPage() {
           riskService.getClassroomSummary(),
           classroomService.getAllStudents(),
         ]);
+
+        console.log("📊 Estudiantes cargados:", studentsData.length);
+        console.log("🔍 Buscando Guerra Pacheco...");
+        const guerraPacheco = studentsData.find(s => s.name.includes("Guerra Pacheco"));
+        if (guerraPacheco) {
+          console.log("✅ Guerra Pacheco encontrado:", guerraPacheco);
+        } else {
+          console.log("❌ Guerra Pacheco NO encontrado en la lista");
+          console.log("Nombres disponibles:", studentsData.map(s => s.name));
+        }
+
         setStats(statsData);
         setStudents(studentsData);
 
         // Cargar datos completos de cada estudiante para los heatmaps
+        console.log("📥 Cargando datos completos de estudiantes...");
         const fullStudentsData = await Promise.all(
-          studentsData.map(s => classroomService.getStudent(s.student_id))
+          studentsData.map(async (s) => {
+            try {
+              return await classroomService.getStudent(s.student_id);
+            } catch (error) {
+              console.error(`Error cargando estudiante ${s.name}:`, error);
+              return null;
+            }
+          })
         );
-        setFullStudents(fullStudentsData);
+
+        // Filtrar nulls y verificar
+        const validFullStudents = fullStudentsData.filter(s => s !== null) as Estudiante[];
+        console.log("✅ Datos completos cargados:", validFullStudents.length);
+
+        const guerraFull = validFullStudents.find(s => s.name.includes("Guerra Pacheco"));
+        if (guerraFull) {
+          console.log("✅ Guerra Pacheco datos completos:", {
+            name: guerraFull.name,
+            risk_level: guerraFull.risk_profile.level,
+            risk_score: guerraFull.risk_profile.score,
+            tiene_cursos: guerraFull.seva_data?.cursos?.length || 0,
+            tiene_emociones: guerraFull.emotional_data?.timeline?.length || 0
+          });
+        }
+
+        setFullStudents(validFullStudents);
       } catch (error) {
         console.error("Error cargando datos de análisis:", error);
       } finally {
@@ -101,6 +136,20 @@ export default function AnalisisPage() {
     const matchesCourse = selectedCourse === "todos" ||
       (hasCourses && student.seva_data.cursos.some(c => c.nombre === selectedCourse));
 
+    // Debug para Guerra Pacheco
+    if (student.name.includes("Guerra Pacheco")) {
+      console.log("🔍 Filtro Guerra Pacheco:", {
+        name: student.name,
+        risk_level: student.risk_profile.level,
+        selectedRiskLevel,
+        matchesRisk,
+        hasCourses,
+        selectedCourse,
+        matchesCourse,
+        willShow: (!hasCourses && matchesRisk && selectedCourse === "todos") || (matchesRisk && matchesCourse)
+      });
+    }
+
     // Para estudiantes sin cursos (Canvas Users), solo filtrar por riesgo
     if (!hasCourses) {
       return matchesRisk && selectedCourse === "todos";
@@ -111,6 +160,18 @@ export default function AnalisisPage() {
 
   const filteredStudents = students.filter(student => {
     return selectedRiskLevel === "todos" || student.risk_level === selectedRiskLevel;
+  });
+
+  // Debug del filtrado
+  console.log("🎯 Filtros aplicados:", {
+    selectedRiskLevel,
+    selectedCourse,
+    totalFullStudents: fullStudents.length,
+    filteredFullStudents: filteredFullStudents.length,
+    totalStudents: students.length,
+    filteredStudents: filteredStudents.length,
+    guerraPachecoEnFull: fullStudents.some(s => s.name.includes("Guerra Pacheco")),
+    guerraPachecoEnFiltered: filteredFullStudents.some(s => s.name.includes("Guerra Pacheco"))
   });
 
   return (
