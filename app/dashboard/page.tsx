@@ -108,12 +108,12 @@ export default function DashboardPage() {
 
   // Calcular distribución real basada en risk_score (por si hay desajuste con el backend)
   const realDistribution = {
-    excelente: students.filter(s => s.risk_score <= 15).length,
-    bueno: students.filter(s => s.risk_score > 15 && s.risk_score <= 30).length,
-    regular: students.filter(s => s.risk_score > 30 && s.risk_score <= 50).length,
-    riesgo_moderado: students.filter(s => s.risk_score > 50 && s.risk_score <= 65).length,
-    riesgo_alto: students.filter(s => s.risk_score > 65 && s.risk_score <= 80).length,
-    riesgo_critico: students.filter(s => s.risk_score > 80).length,
+    excelente: students.filter(s => s.risk_score < 16).length,        // 0-15
+    bueno: students.filter(s => s.risk_score >= 16 && s.risk_score < 31).length,      // 16-30
+    regular: students.filter(s => s.risk_score >= 31 && s.risk_score < 51).length,    // 31-50
+    riesgo_moderado: students.filter(s => s.risk_score >= 51 && s.risk_score < 66).length, // 51-65
+    riesgo_alto: students.filter(s => s.risk_score >= 66 && s.risk_score < 81).length,     // 66-80
+    riesgo_critico: students.filter(s => s.risk_score >= 81).length,  // 81-100
   };
 
   // Alertas de estudiantes críticos - incluir emociones recientes y supervivencia

@@ -49,14 +49,14 @@ const RISK_LEVEL_MAP: Record<string, RiskLevel> = {
   "riesgo_critico": "riesgo_critico",
 };
 
-// Normalizar nivel de riesgo
-function normalizeRiskLevel(level: string): RiskLevel {
-  const normalized = RISK_LEVEL_MAP[level.toLowerCase()];
-  if (!normalized) {
-    console.warn(`⚠️ Nivel de riesgo desconocido: ${level}, usando "regular" por defecto`);
-    return "regular";
-  }
-  return normalized;
+// Normalizar nivel de riesgo basado en score (más confiable)
+function normalizeRiskLevelByScore(score: number): RiskLevel {
+  if (score >= 81) return "riesgo_critico";      // 81-100
+  if (score >= 66) return "riesgo_alto";         // 66-80
+  if (score >= 51) return "riesgo_moderado";     // 51-65
+  if (score >= 31) return "regular";             // 31-50
+  if (score >= 16) return "bueno";               // 16-30
+  return "excelente";                            // 0-15
 }
 
 export default function AnalisisPage() {
@@ -168,10 +168,22 @@ export default function AnalisisPage() {
     )
   ).sort();
 
+  // Calcular distribución real basada en risk_score
+  const realDistribution = {
+    excelente: students.filter(s => s.risk_score < 16).length,
+    bueno: students.filter(s => s.risk_score >= 16 && s.risk_score < 31).length,
+    regular: students.filter(s => s.risk_score >= 31 && s.risk_score < 51).length,
+    riesgo_moderado: students.filter(s => s.risk_score >= 51 && s.risk_score < 66).length,
+    riesgo_alto: students.filter(s => s.risk_score >= 66 && s.risk_score < 81).length,
+    riesgo_critico: students.filter(s => s.risk_score >= 81).length,
+  };
+
+  console.log("📊 Distribución real calculada:", realDistribution);
+
   // Filtrar estudiantes según selección (incluir estudiantes sin cursos SEVA)
   const filteredFullStudents = fullStudents.filter(student => {
-    // Normalizar el nivel de riesgo del estudiante
-    const normalizedRiskLevel = normalizeRiskLevel(student.risk_profile.level);
+    // Normalizar el nivel de riesgo del estudiante basado en score
+    const normalizedRiskLevel = normalizeRiskLevelByScore(student.risk_profile.score);
     const matchesRisk = selectedRiskLevel === "todos" || normalizedRiskLevel === selectedRiskLevel;
 
     // Si el curso es "todos", incluir todos los estudiantes
@@ -189,7 +201,7 @@ export default function AnalisisPage() {
   });
 
   const filteredStudents = students.filter(student => {
-    const normalizedLevel = normalizeRiskLevel(student.risk_level);
+    const normalizedLevel = normalizeRiskLevelByScore(student.risk_score);
     return selectedRiskLevel === "todos" || normalizedLevel === selectedRiskLevel;
   });
 
@@ -243,21 +255,36 @@ export default function AnalisisPage() {
                   size="sm"
                   onClick={() => setSelectedRiskLevel("riesgo_critico")}
                 >
-                  Crítico ({stats?.risk_distribution.riesgo_critico || 0})
+                  Crítico ({realDistribution.riesgo_critico})
                 </Button>
                 <Button
                   variant={selectedRiskLevel === "riesgo_alto" ? "destructive" : "outline"}
                   size="sm"
                   onClick={() => setSelectedRiskLevel("riesgo_alto")}
                 >
-                  Alto ({stats?.risk_distribution.riesgo_alto || 0})
+                  Alto ({realDistribution.riesgo_alto})
                 </Button>
                 <Button
                   variant={selectedRiskLevel === "riesgo_moderado" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setSelectedRiskLevel("riesgo_moderado")}
                 >
-                  Moderado ({stats?.risk_distribution.riesgo_moderado || 0})
+                  Moderado ({realDistribution.riesgo_moderado})
+                </Button>
+                <Button
+                  variant={selectedRiskLevel === "regular" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedRiskLevel("regular")}
+                >
+                  Regular ({realDistribution.regular})
+                </Button>
+                <Button
+                  variant={selectedRiskLevel === "bueno" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedRiskLevel("bueno")}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  Bueno ({realDistribution.bueno})
                 </Button>
                 <Button
                   variant={selectedRiskLevel === "excelente" ? "default" : "outline"}
@@ -265,7 +292,7 @@ export default function AnalisisPage() {
                   onClick={() => setSelectedRiskLevel("excelente")}
                   className="bg-green-600 hover:bg-green-700 text-white"
                 >
-                  Excelente ({stats?.risk_distribution.excelente || 0})
+                  Excelente ({realDistribution.excelente})
                 </Button>
               </div>
             </div>

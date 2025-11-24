@@ -9,6 +9,20 @@ import { Search } from "lucide-react";
 import type { StudentSummary, RiskLevel } from "@/types";
 import { TourButton } from "@/components/ui/tour-button";
 
+// Normalizar el risk_level del backend al formato esperado
+function normalizeRiskLevel(student: StudentSummary): RiskLevel {
+  const score = student.risk_score;
+  
+  // Clasificar por score (más confiable que el risk_level del backend)
+  // Usar >= para incluir límites y evitar gaps
+  if (score >= 81) return "riesgo_critico";      // 81-100
+  if (score >= 66) return "riesgo_alto";         // 66-80
+  if (score >= 51) return "riesgo_moderado";     // 51-65
+  if (score >= 31) return "regular";             // 31-50
+  if (score >= 16) return "bueno";               // 16-30
+  return "excelente";                            // 0-15
+}
+
 export default function EstudiantesPage() {
   const [estudiantes, setEstudiantes] = useState<StudentSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +34,19 @@ export default function EstudiantesPage() {
       try {
         setLoading(true);
         const data = await classroomService.getAllStudents();
-        console.log("Loaded students:", data.length);
+        console.log("📊 Loaded students:", data.length);
+        
+        // Debug: Verificar distribución real
+        const distribution = {
+          critico: data.filter(s => s.risk_score >= 81).length,
+          alto: data.filter(s => s.risk_score >= 66 && s.risk_score < 81).length,
+          moderado: data.filter(s => s.risk_score >= 51 && s.risk_score < 66).length,
+          regular: data.filter(s => s.risk_score >= 31 && s.risk_score < 51).length,
+          bueno: data.filter(s => s.risk_score >= 16 && s.risk_score < 31).length,
+          excelente: data.filter(s => s.risk_score < 16).length,
+        };
+        console.log("📊 Distribución real por score:", distribution);
+        
         setEstudiantes(data);
       } catch (error) {
         console.error("Error loading students:", error);
@@ -38,8 +64,10 @@ export default function EstudiantesPage() {
         item.student_id.toLowerCase().includes(busqueda.toLowerCase()) ||
         item.email.toLowerCase().includes(busqueda.toLowerCase());
 
+      // Normalizar el risk_level para comparación correcta
+      const normalizedLevel = normalizeRiskLevel(item);
       const matchRiesgo =
-        filtroRiesgo === "todos" || item.risk_level === filtroRiesgo;
+        filtroRiesgo === "todos" || normalizedLevel === filtroRiesgo;
 
       return matchBusqueda && matchRiesgo;
     })
@@ -180,7 +208,9 @@ export default function EstudiantesPage() {
 
       {/* Students Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {estudiantesFiltrados.map((estudiante, index) => (
+        {estudiantesFiltrados.map((estudiante, index) => {
+          const normalizedLevel = normalizeRiskLevel(estudiante);
+          return (
           <Link
             key={estudiante.student_id}
             href={`/dashboard/estudiante/${estudiante.student_id}`}
@@ -199,14 +229,14 @@ export default function EstudiantesPage() {
                   <div
                     className={cn(
                       "px-2 py-1 rounded text-xs font-medium whitespace-nowrap",
-                      isHighRisk(estudiante.risk_level)
+                      isHighRisk(normalizedLevel)
                         ? "bg-red-100 text-red-800"
-                        : isMediumRisk(estudiante.risk_level)
+                        : isMediumRisk(normalizedLevel)
                         ? "bg-yellow-100 text-yellow-800"
                         : "bg-green-100 text-green-800"
                     )}
                   >
-                    {getRiskLevelLabel(estudiante.risk_level)}
+                    {getRiskLevelLabel(normalizedLevel)}
                   </div>
                 </div>
               </CardHeader>
@@ -222,9 +252,9 @@ export default function EstudiantesPage() {
                       <div
                         className={cn(
                           "h-full transition-all",
-                          isHighRisk(estudiante.risk_level)
+                          isHighRisk(normalizedLevel)
                             ? "bg-red-500"
-                            : isMediumRisk(estudiante.risk_level)
+                            : isMediumRisk(normalizedLevel)
                             ? "bg-yellow-500"
                             : "bg-green-500"
                         )}
@@ -253,7 +283,8 @@ export default function EstudiantesPage() {
               </CardContent>
             </Card>
           </Link>
-        ))}
+        );
+        })}
       </div>
 
       {/* No results */}
